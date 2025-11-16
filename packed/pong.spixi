@@ -9,5 +9,5 @@ minUsers =
 maxUsers = 2
 protocols = 
 contentUrl = pong.zip
-checksum = a9a4d333984d78a212c32fc85618f71881ffcce12c90317714af455968d8fb96
-contentSize = 10829
+checksum = ce5cfb712a1fcbbe865b360247f4dd55864eba56c2699c05fa4e97b340bcc4a5
+contentSize = 14564

@@ -3,52 +3,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pong</title>
+    <title>Pong - Multiplayer Game</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
     <div id="game-container">
-        <div id="waiting-screen">
-            <h1>Pong</h1>
-            <p>Waiting for opponent...</p>
-            <div class="spinner"></div>
-        </div>
-        
-        <div id="game-screen" style="display: none;">
-            <div id="score-board">
-                <div class="score">
-                    <span class="score-label">Your Lives</span>
-                    <span id="local-score">3</span>
+        <!-- Waiting Screen -->
+        <div id="waiting-screen" class="screen-active">
+            <div class="logo-container">
+                <div class="logo-circle">
+                    <svg class="logo-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="5" y="30" width="8" height="40" rx="4" fill="currentColor"/>
+                        <rect x="87" y="30" width="8" height="40" rx="4" fill="currentColor"/>
+                        <circle cx="50" cy="50" r="6" fill="currentColor"/>
+                    </svg>
                 </div>
-                <div class="divider"></div>
-                <div class="score">
-                    <span id="remote-score">3</span>
-                    <span class="score-label">Opponent Lives</span>
-                </div>
+                <h1 class="game-title">Pong</h1>
             </div>
-            
-            <canvas id="pongCanvas"></canvas>
-            
-            <div id="game-info">
-                <p id="status-text">GET READY!</p>
-                <div id="game-buttons">
-                    <button id="startBtn" class="action-btn start-btn" style="display: none;">START</button>
-                    <button id="shootBtn" class="action-btn shoot-btn" style="display: none;">SHOOT</button>
-                    <button id="restartGameBtn" class="action-btn" style="display: inline-block;">RESTART</button>
-                    <button id="exitBtn" class="action-btn exit-btn">EXIT</button>
+            <div class="waiting-content">
+                <div class="spinner-container">
+                    <div class="spinner">
+                        <div class="spinner-ring"></div>
+                        <div class="spinner-ring"></div>
+                        <div class="spinner-ring"></div>
+                    </div>
                 </div>
-            </div>
-            
-            <div id="controls">
-                <button id="upBtn" class="control-btn">▲</button>
-                <button id="downBtn" class="control-btn">▼</button>
+                <p class="waiting-text">Waiting for opponent...</p>
+                <div class="connection-status">
+                    <span class="status-dot"></span>
+                    <span class="status-label">Searching for player</span>
+                </div>
             </div>
         </div>
         
-        <div id="game-over-screen" style="display: none;">
-            <h1 id="result-text">Game Over</h1>
-            <p id="final-score"></p>
-            <button id="restartBtn">Play Again</button>
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen-hidden">
+            <!-- Header with Scores -->
+            <header class="game-header">
+                <div class="score-container player-score">
+                    <div class="score-label">You</div>
+                    <div class="score-value" id="local-score">3</div>
+                    <div class="lives-indicator">
+                        <span class="life-dot active"></span>
+                        <span class="life-dot active"></span>
+                        <span class="life-dot active"></span>
+                    </div>
+                </div>
+                
+                <div class="game-status">
+                    <div class="status-badge" id="status-text">GET READY!</div>
+                </div>
+                
+                <div class="score-container opponent-score">
+                    <div class="score-label">Opponent</div>
+                    <div class="score-value" id="remote-score">3</div>
+                    <div class="lives-indicator">
+                        <span class="life-dot active"></span>
+                        <span class="life-dot active"></span>
+                        <span class="life-dot active"></span>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Game Canvas -->
+            <div class="canvas-wrapper">
+                <canvas id="pongCanvas"></canvas>
+                <div class="canvas-overlay" id="canvasOverlay"></div>
+            </div>
+            
+            <!-- Game Controls -->
+            <div class="game-controls">
+                <div class="action-buttons" id="game-buttons">
+                    <button id="startBtn" class="btn btn-primary" style="display: none;">
+                        <span class="btn-icon">▶</span>
+                        <span class="btn-text">Start Game</span>
+                    </button>
+                    <button id="shootBtn" class="btn btn-accent" style="display: none;">
+                        <span class="btn-icon">🎯</span>
+                        <span class="btn-text">Launch Ball</span>
+                    </button>
+                    <button id="restartGameBtn" class="btn btn-secondary" style="display: inline-flex;">
+                        <span class="btn-icon">🔄</span>
+                        <span class="btn-text">Restart</span>
+                    </button>
+                    <button id="exitBtn" class="btn btn-ghost">
+                        <span class="btn-icon">✕</span>
+                        <span class="btn-text">Exit</span>
+                    </button>
+                </div>
+                
+                <!-- Touch Controls -->
+                <div class="touch-controls" id="controls">
+                    <button id="upBtn" class="control-btn" aria-label="Move paddle up">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 15l-6-6-6 6"/>
+                        </svg>
+                    </button>
+                    <button id="downBtn" class="control-btn" aria-label="Move paddle down">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Game Over Screen -->
+        <div id="game-over-screen" class="screen-hidden">
+            <div class="game-over-content">
+                <div class="result-icon" id="resultIcon">
+                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="4"/>
+                        <path d="M30 50 L45 65 L70 35" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <h1 id="result-text" class="result-title">Victory!</h1>
+                <p id="final-score" class="result-score"></p>
+                <div class="result-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Duration</span>
+                        <span class="stat-value" id="gameDuration">2:34</span>
+                    </div>
+                </div>
+                <button id="restartBtn" class="btn btn-primary btn-large">
+                    <span class="btn-icon">🎮</span>
+                    <span class="btn-text">Play Again</span>
+                </button>
+            </div>
         </div>
     </div>
     

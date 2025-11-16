@@ -55,6 +55,7 @@ let remotePlayerReady = false;
 let countdownActive = false;
 let countdownValue = 3;
 let autoStartTimer = null;
+let gameStartTime = 0;
 
 // Network ping interval
 let pingInterval = null;
@@ -71,6 +72,12 @@ function establishConnection() {
 function handleConnectionEstablished() {
     connectionEstablished = true;
     
+    // Update connection status
+    const statusLabel = document.querySelector('.status-label');
+    if (statusLabel) {
+        statusLabel.textContent = 'Connected';
+    }
+    
     // Start regular ping
     if (!pingInterval) {
         pingInterval = setInterval(() => {
@@ -82,9 +89,15 @@ function handleConnectionEstablished() {
         }, 2000);
     }
     
-    // Show ready screen and auto-start immediately
-    document.getElementById('waiting-screen').style.display = 'none';
-    document.getElementById('game-screen').style.display = 'block';
+    // Smooth transition to game screen
+    const waitingScreen = document.getElementById('waiting-screen');
+    const gameScreen = document.getElementById('game-screen');
+    
+    waitingScreen.classList.remove('screen-active');
+    waitingScreen.classList.add('screen-hidden');
+    gameScreen.classList.remove('screen-hidden');
+    gameScreen.classList.add('screen-active');
+    
     document.getElementById('status-text').textContent = 'CONNECTING...';
     document.getElementById('startBtn').style.display = 'none';
     
@@ -104,8 +117,11 @@ function initGame() {
     
     setupControls();
     
-    // Show waiting screen initially
-    document.getElementById('waiting-screen').style.display = 'flex';
+    // Show waiting screen initially with modern classes
+    const waitingScreen = document.getElementById('waiting-screen');
+    waitingScreen.classList.add('screen-active');
+    waitingScreen.classList.remove('screen-hidden');
+    
     updateLivesDisplay();
 }
 
@@ -227,6 +243,7 @@ function startCountdown() {
 
 function startGame() {
     document.getElementById('startBtn').style.display = 'none';
+    gameStartTime = Date.now();
     
     // Randomly determine who controls the ball
     const combinedId = sessionId + remotePlayerAddress;
@@ -235,13 +252,13 @@ function startGame() {
     
     // Show shoot button for both players
     const shootBtn = document.getElementById('shootBtn');
-    shootBtn.style.display = 'inline-block';
+    shootBtn.style.display = 'inline-flex';
     
     if (gameState.isBallOwner) {
-        document.getElementById('status-text').textContent = 'CLICK SHOOT TO START!';
+        document.getElementById('status-text').textContent = 'Launch Ball!';
         shootBtn.disabled = false;
     } else {
-        document.getElementById('status-text').textContent = 'OPPONENT WILL SHOOT...';
+        document.getElementById('status-text').textContent = 'Opponent Serves...';
         shootBtn.disabled = true;
     }
     
@@ -268,7 +285,7 @@ function startGame() {
 function launchBall() {
     if (gameState.ball.vx === 0 && gameState.isBallOwner) {
         document.getElementById('shootBtn').style.display = 'none';
-        document.getElementById('status-text').textContent = 'PONG!';
+        document.getElementById('status-text').textContent = 'Game On!';
         
         // Initialize ball velocity
         const angle = (Math.random() * Math.PI / 3) - Math.PI / 6;
@@ -468,6 +485,26 @@ function resetBall() {
 function updateLivesDisplay() {
     document.getElementById('local-score').textContent = gameState.localPaddle.lives;
     document.getElementById('remote-score').textContent = gameState.remotePaddle.lives;
+    
+    // Update life dots
+    const playerDots = document.querySelectorAll('.player-score .life-dot');
+    const opponentDots = document.querySelectorAll('.opponent-score .life-dot');
+    
+    playerDots.forEach((dot, index) => {
+        if (index < gameState.localPaddle.lives) {
+            dot.classList.add('active');
+        } else {
+            dot.classList.remove('active');
+        }
+    });
+    
+    opponentDots.forEach((dot, index) => {
+        if (index < gameState.remotePaddle.lives) {
+            dot.classList.add('active');
+        } else {
+            dot.classList.remove('active');
+        }
+    });
 }
 
 function render() {
@@ -509,13 +546,50 @@ function endGame(won) {
         gameLoopInterval = null;
     }
     
-    document.getElementById('game-screen').style.display = 'none';
-    document.getElementById('game-over-screen').style.display = 'flex';
+    // Calculate game duration
+    const duration = Math.floor((Date.now() - gameStartTime) / 1000);
+    const minutes = Math.floor(duration / 60);
+    const seconds = duration % 60;
+    const durationText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
     
-    document.getElementById('result-text').textContent = won ? 'You Win!' : 'You Lose!';
-    document.getElementById('result-text').style.color = won ? '#48bb78' : '#f56565';
+    // Smooth transition to game over screen
+    const gameScreen = document.getElementById('game-screen');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    
+    gameScreen.classList.remove('screen-active');
+    gameScreen.classList.add('screen-hidden');
+    gameOverScreen.classList.remove('screen-hidden');
+    gameOverScreen.classList.add('screen-active');
+    
+    // Update result UI
+    const resultText = document.getElementById('result-text');
+    const resultIcon = document.getElementById('resultIcon');
+    
+    if (won) {
+        resultText.textContent = 'Victory!';
+        resultText.classList.add('victory');
+        resultText.classList.remove('defeat');
+        resultIcon.classList.add('victory');
+        resultIcon.classList.remove('defeat');
+        // Update icon to checkmark (already in HTML)
+    } else {
+        resultText.textContent = 'Defeat';
+        resultText.classList.add('defeat');
+        resultText.classList.remove('victory');
+        resultIcon.classList.add('defeat');
+        resultIcon.classList.remove('victory');
+        // Update icon to X
+        resultIcon.innerHTML = `
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="4"/>
+                <path d="M35 35 L65 65 M65 35 L35 65" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+            </svg>
+        `;
+    }
+    
     document.getElementById('final-score').textContent = 
-        `Final Lives: You ${gameState.localPaddle.lives} - ${gameState.remotePaddle.lives} Opponent`;
+        `Final Score: ${gameState.localPaddle.lives} - ${gameState.remotePaddle.lives}`;
+    document.getElementById('gameDuration').textContent = durationText;
     
     saveGameState();
     sendEndGame();
@@ -549,14 +623,24 @@ function restartGame() {
     localPlayerReady = false;
     remotePlayerReady = false;
     countdownActive = false;
+    gameStartTime = 0;
     
-    document.getElementById('game-over-screen').style.display = 'none';
-    document.getElementById('game-screen').style.display = 'block';
-    document.getElementById('startBtn').style.display = 'inline-block';
-    document.getElementById('startBtn').disabled = false;
-    document.getElementById('startBtn').textContent = 'START';
+    // Smooth screen transition
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const gameScreen = document.getElementById('game-screen');
+    
+    gameOverScreen.classList.remove('screen-active');
+    gameOverScreen.classList.add('screen-hidden');
+    gameScreen.classList.remove('screen-hidden');
+    gameScreen.classList.add('screen-active');
+    
+    // Update button states
+    const startBtn = document.getElementById('startBtn');
+    startBtn.style.display = 'inline-flex';
+    startBtn.disabled = false;
+    startBtn.querySelector('.btn-text').textContent = 'Start Game';
     document.getElementById('shootBtn').style.display = 'none';
-    document.getElementById('status-text').textContent = 'PRESS START!';
+    document.getElementById('status-text').textContent = 'Ready to Play!';
     
     updateLivesDisplay();
     
@@ -688,7 +772,7 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
                 // Ball owner has launched - hide shoot button and update status
                 if (!gameState.isBallOwner) {
                     document.getElementById('shootBtn').style.display = 'none';
-                    document.getElementById('status-text').textContent = 'PONG!';
+                    document.getElementById('status-text').textContent = 'Game On!';
                 }
                 break;
                 
