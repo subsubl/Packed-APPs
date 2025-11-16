@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pong</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="waiting-screen">
+            <h1>Pong</h1>
+            <p>Waiting for opponent...</p>
+            <div class="spinner"></div>
+        </div>
+        
+        <div id="game-screen" style="display: none;">
+            <div id="score-board">
+                <div class="score">
+                    <span class="score-label">You</span>
+                    <span id="local-score">0</span>
+                </div>
+                <div class="divider"></div>
+                <div class="score">
+                    <span id="remote-score">0</span>
+                    <span class="score-label">Opponent</span>
+                </div>
+            </div>
+            
+            <canvas id="pongCanvas"></canvas>
+            
+            <div id="game-info">
+                <p id="status-text">Get Ready!</p>
+            </div>
+            
+            <div id="controls">
+                <button id="upBtn" class="control-btn">▲</button>
+                <button id="downBtn" class="control-btn">▼</button>
+            </div>
+        </div>
+        
+        <div id="game-over-screen" style="display: none;">
+            <h1 id="result-text">Game Over</h1>
+            <p id="final-score"></p>
+            <button id="restartBtn">Play Again</button>
+        </div>
+    </div>
+    
+    <script src="js/spixi-app-sdk.js"></script>
+    <script src="js/spixi-tools.js"></script>
+    <script src="js/pong.js"></script>
+</body>
+</html>
