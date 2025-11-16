@@ -38,7 +38,9 @@ let ballTarget = {
     vx: 0,
     vy: 0
 };
-let ballInterpolationSpeed = 0.3; // Higher = faster catch-up (0.1 to 0.5)
+let ballInterpolationSpeed = 0.4; // Higher = faster catch-up
+let lastBallUpdate = 0;
+const BALL_UPDATE_RATE = 50; // Send every 50ms for smooth sync
 
 let canvas, ctx;
 let remotePlayerAddress = '';
@@ -52,6 +54,7 @@ let localPlayerReady = false;
 let remotePlayerReady = false;
 let countdownActive = false;
 let countdownValue = 3;
+let autoStartTimer = null;
 
 // Network ping interval
 let pingInterval = null;
@@ -79,12 +82,18 @@ function handleConnectionEstablished() {
         }, 2000);
     }
     
-    // Show ready screen
+    // Show ready screen and auto-start after 2 seconds
     document.getElementById('waiting-screen').style.display = 'none';
     document.getElementById('game-screen').style.display = 'block';
-    document.getElementById('status-text').textContent = 'Press START when ready!';
-    document.getElementById('startBtn').style.display = 'inline-block';
-    document.getElementById('startBtn').disabled = false;
+    document.getElementById('status-text').textContent = 'Starting game...';
+    document.getElementById('startBtn').style.display = 'none';
+    
+    // Auto-start game after short delay
+    autoStartTimer = setTimeout(() => {
+        localPlayerReady = true;
+        remotePlayerReady = true;
+        startCountdown();
+    }, 2000);
 }
 
 function initGame() {
@@ -182,6 +191,16 @@ function setupControls() {
     
     // Restart button
     document.getElementById('restartBtn').addEventListener('click', restartGame);
+    
+    // Restart button during game
+    const restartGameBtn = document.getElementById('restartGameBtn');
+    if (restartGameBtn) {
+        restartGameBtn.addEventListener('click', () => {
+            if (gameState.gameStarted) {
+                restartGame();
+            }
+        });
+    }
     
     // Exit button
     const exitBtn = document.getElementById('exitBtn');
@@ -294,9 +313,11 @@ function gameLoop() {
         sendPaddlePosition();
     }
     
-    // Ball owner sends ball state periodically for smooth sync
-    if (gameState.isBallOwner && gameState.ball.vx !== 0 && currentTime - lastDataSent >= PADDLE_UPDATE_RATE * 2) {
+    // Ball owner sends ball state frequently for smooth sync
+    const timeSinceLastBallUpdate = currentTime - lastBallUpdate;
+    if (gameState.isBallOwner && gameState.ball.vx !== 0 && timeSinceLastBallUpdate >= BALL_UPDATE_RATE) {
         sendBallState();
+        lastBallUpdate = currentTime;
     }
 }
 
@@ -328,13 +349,13 @@ function interpolateBall() {
     gameState.ball.x += (ballTarget.x - gameState.ball.x) * ballInterpolationSpeed;
     gameState.ball.y += (ballTarget.y - gameState.ball.y) * ballInterpolationSpeed;
     
-    // Also interpolate velocity for predictive motion between updates
+    // Also interpolate velocity for predictive motion
     gameState.ball.vx += (ballTarget.vx - gameState.ball.vx) * ballInterpolationSpeed;
     gameState.ball.vy += (ballTarget.vy - gameState.ball.vy) * ballInterpolationSpeed;
     
-    // Add small predictive movement based on current velocity
-    gameState.ball.x += gameState.ball.vx * 0.5;
-    gameState.ball.y += gameState.ball.vy * 0.5;
+    // Add predictive movement based on velocity (increased for smoother motion)
+    gameState.ball.x += gameState.ball.vx * 0.7;
+    gameState.ball.y += gameState.ball.vy * 0.7;
     
     // Keep ball in bounds
     gameState.ball.x = Math.max(0, Math.min(CANVAS_WIDTH, gameState.ball.x));
@@ -558,12 +579,13 @@ function sendPaddlePosition() {
 function sendBallState() {
     lastDataSent = SpixiTools.getTimestamp();
     const b = gameState.ball;
+    // Use compact packet: shortened keys and minimal precision
     SpixiAppSdk.sendNetworkData(JSON.stringify({
-        a: "ball",
+        a: "b",
         x: Math.round(b.x),
         y: Math.round(b.y),
-        vx: parseFloat(b.vx.toFixed(2)),
-        vy: parseFloat(b.vy.toFixed(2))
+        vx: Number(b.vx.toFixed(1)),
+        vy: Number(b.vy.toFixed(1))
     }));
 }
 
@@ -655,7 +677,7 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
                 gameState.remotePaddle.y = msg.y;
                 break;
                 
-            case "ball":
+            case "b": // Optimized ball update
                 // Receive ball state from ball owner
                 if (!gameState.isBallOwner) {
                     // Update target for smooth interpolation
@@ -669,7 +691,7 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
                         Math.pow(gameState.ball.x - msg.x, 2) + 
                         Math.pow(gameState.ball.y - msg.y, 2)
                     );
-                    if (gameState.ball.vx === 0 || distance > 100) {
+                    if (gameState.ball.vx === 0 || distance > 150) {
                         gameState.ball.x = msg.x;
                         gameState.ball.y = msg.y;
                         gameState.ball.vx = msg.vx;
