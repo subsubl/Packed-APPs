@@ -7,5 +7,5 @@ capabilities = multiUser
 maxUsers = 2
 image = pong.png
 contentUrl = pong.zip
-checksum = ce0c466b741824a42eb37c673cbdd056fd19a12e3f0fa39b9ea67438168c9a39
+checksum = f71e77d3fefdcf902b4ab819c1942107ba3cddd471fb275b597522e016f21eb4
 contentSize = 10539
