@@ -574,13 +574,19 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
         
         switch(d.a) {
             case "h": // hello
-                // Reply to hello
-                if (!helloReceived) {
-                    helloReceived = true;
+                // Always reply to hello if we haven't confirmed connection
+                if (!bothUsersPresent) {
                     SpixiAppSdk.sendNetworkData(JSON.stringify({a:"h"}));
+                    lastDataSent = SpixiTools.getTimestamp();
                 }
                 
-                if (!bothUsersPresent) {
+                // Mark that we received hello from other user
+                if (!helloReceived) {
+                    helloReceived = true;
+                }
+                
+                // Once both have exchanged hellos, connection is established
+                if (helloReceived && !bothUsersPresent) {
                     bothUsersPresent = true;
                     // Both users present, show game screen with start button
                     document.getElementById('waiting-screen').style.display = 'none';
