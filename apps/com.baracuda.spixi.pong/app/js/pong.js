@@ -25,7 +25,6 @@ let gameState = {
         vy: 0
     },
     isBallOwner: false, // Who controls the ball (randomly assigned)
-    isLeftPlayer: false, // Which side we're on (for rendering)
     gameStarted: false,
     gameEnded: false,
     lastUpdate: 0
@@ -339,50 +338,47 @@ function updateBall() {
 
 
 function checkCollisions() {
-    const localPaddleX = gameState.isLeftPlayer ? 20 : CANVAS_WIDTH - 20 - PADDLE_WIDTH;
-    const remotePaddleX = gameState.isLeftPlayer ? CANVAS_WIDTH - 20 - PADDLE_WIDTH : 20;
+    // Local player always on right side
+    const localPaddleX = CANVAS_WIDTH - 20 - PADDLE_WIDTH;
+    const remotePaddleX = 20;
     
-    // Local paddle collision
-    if (gameState.ball.x - BALL_SIZE / 2 <= localPaddleX + PADDLE_WIDTH &&
-        gameState.ball.x + BALL_SIZE / 2 >= localPaddleX &&
+    // Local paddle collision (right side)
+    if (gameState.ball.x + BALL_SIZE / 2 >= localPaddleX &&
+        gameState.ball.x - BALL_SIZE / 2 <= localPaddleX + PADDLE_WIDTH &&
         gameState.ball.y >= gameState.localPaddle.y &&
         gameState.ball.y <= gameState.localPaddle.y + PADDLE_HEIGHT) {
         
-        gameState.ball.vx = Math.abs(gameState.ball.vx) * (gameState.isLeftPlayer ? 1 : -1);
+        gameState.ball.vx = -Math.abs(gameState.ball.vx); // Bounce left
         gameState.ball.vx += gameState.ball.vx > 0 ? BALL_SPEED_INCREMENT : -BALL_SPEED_INCREMENT;
         
         const relativeIntersectY = (gameState.localPaddle.y + PADDLE_HEIGHT / 2) - gameState.ball.y;
         gameState.ball.vy = -relativeIntersectY * 0.15;
         
-        gameState.ball.x = localPaddleX + (gameState.isLeftPlayer ? PADDLE_WIDTH + BALL_SIZE / 2 : -BALL_SIZE / 2);
+        gameState.ball.x = localPaddleX - BALL_SIZE / 2;
         sendBallState(); // Send ball state on collision
     }
     
-    // Remote paddle collision
+    // Remote paddle collision (left side)
     if (gameState.ball.x - BALL_SIZE / 2 <= remotePaddleX + PADDLE_WIDTH &&
         gameState.ball.x + BALL_SIZE / 2 >= remotePaddleX &&
         gameState.ball.y >= gameState.remotePaddle.y &&
         gameState.ball.y <= gameState.remotePaddle.y + PADDLE_HEIGHT) {
         
-        gameState.ball.vx = Math.abs(gameState.ball.vx) * (gameState.isLeftPlayer ? -1 : 1);
+        gameState.ball.vx = Math.abs(gameState.ball.vx); // Bounce right
         gameState.ball.vx += gameState.ball.vx > 0 ? BALL_SPEED_INCREMENT : -BALL_SPEED_INCREMENT;
         
         const relativeIntersectY = (gameState.remotePaddle.y + PADDLE_HEIGHT / 2) - gameState.ball.y;
         gameState.ball.vy = -relativeIntersectY * 0.15;
         
-        gameState.ball.x = remotePaddleX + (gameState.isLeftPlayer ? -BALL_SIZE / 2 : PADDLE_WIDTH + BALL_SIZE / 2);
+        gameState.ball.x = remotePaddleX + PADDLE_WIDTH + BALL_SIZE / 2;
         sendBallState(); // Send ball state on collision
     }
 }
 
 function checkScore() {
     if (gameState.ball.x < 0) {
-        // Left player missed
-        if (gameState.isLeftPlayer) {
-            gameState.localPaddle.lives--;
-        } else {
-            gameState.remotePaddle.lives--;
-        }
+        // Left side (remote player) missed
+        gameState.remotePaddle.lives--;
         updateLivesDisplay();
         
         if (gameState.localPaddle.lives <= 0 || gameState.remotePaddle.lives <= 0) {
@@ -392,12 +388,8 @@ function checkScore() {
             sendLifeUpdate();
         }
     } else if (gameState.ball.x > CANVAS_WIDTH) {
-        // Right player missed
-        if (gameState.isLeftPlayer) {
-            gameState.remotePaddle.lives--;
-        } else {
-            gameState.localPaddle.lives--;
-        }
+        // Right side (local player) missed
+        gameState.localPaddle.lives--;
         updateLivesDisplay();
         
         if (gameState.localPaddle.lives <= 0 || gameState.remotePaddle.lives <= 0) {
@@ -489,17 +481,19 @@ function render() {
         ctx.restore();
     }
     
-    // Draw paddles
+    // Draw paddles - local player always on right side
+    const localPaddleX = CANVAS_WIDTH - 20 - PADDLE_WIDTH; // Always right
+    const remotePaddleX = 20; // Always left
+    
+    // Color local paddle blue, remote paddle blue
     ctx.fillStyle = '#4299e1';
-    const localPaddleX = gameState.isLeftPlayer ? 20 : CANVAS_WIDTH - 20 - PADDLE_WIDTH;
     ctx.fillRect(localPaddleX, gameState.localPaddle.y, PADDLE_WIDTH, PADDLE_HEIGHT);
     
-    ctx.fillStyle = '#f56565';
-    const remotePaddleX = gameState.isLeftPlayer ? CANVAS_WIDTH - 20 - PADDLE_WIDTH : 20;
+    ctx.fillStyle = '#4299e1';
     ctx.fillRect(remotePaddleX, gameState.remotePaddle.y, PADDLE_WIDTH, PADDLE_HEIGHT);
     
-    // Draw ball
-    ctx.fillStyle = '#ffffff';
+    // Draw ball - red if this player owns it, white otherwise
+    ctx.fillStyle = gameState.isBallOwner ? '#f56565' : '#ffffff';
     ctx.beginPath();
     ctx.arc(gameState.ball.x, gameState.ball.y, BALL_SIZE / 2, 0, Math.PI * 2);
     ctx.fill();
@@ -664,8 +658,7 @@ SpixiAppSdk.onInit = function(sid, userAddresses) {
     const addresses = userAddresses.split(",");
     remotePlayerAddress = addresses[0];
     
-    // Determine which side we're on (left or right)
-    gameState.isLeftPlayer = sessionId < remotePlayerAddress;
+    // Local player is always on the right side
     
     // Initialize game UI and start connection
     initGame();
