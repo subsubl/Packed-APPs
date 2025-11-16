@@ -37,6 +37,9 @@ let playerLastSeen = 0;
 let lastDataSent = 0;
 let keysPressed = {};
 let touchControlActive = null;
+let helloReceived = false;
+let helloSent = false;
+let bothUsersPresent = false;
 
 // Network ping interval
 const pingInterval = setInterval(ping, 2000);
@@ -48,8 +51,14 @@ function ping() {
         return;
     }
     lastDataSent = currentTime;
-    const data = { action: "ping", timestamp: currentTime };
-    SpixiAppSdk.sendNetworkData(JSON.stringify(data));
+    
+    // Send hello if not both users present
+    if (!bothUsersPresent) {
+        SpixiAppSdk.sendNetworkData(JSON.stringify({a:"h"}));
+        helloSent = true;
+    } else {
+        SpixiAppSdk.sendNetworkData(JSON.stringify({a:"p"}));
+    }
 }
 
 function initGame() {
@@ -363,52 +372,48 @@ function exitGame() {
         clearInterval(gameLoopInterval);
         gameLoopInterval = null;
     }
-    SpixiAppSdk.close();
+    if (pingInterval) {
+        clearInterval(pingInterval);
+    }
+    SpixiAppSdk.back();
 }
 
 // Network functions
 function sendPaddlePosition() {
     lastDataSent = Date.now();
-    const data = {
-        action: "paddleMove",
-        y: gameState.localPaddle.y,
-        timestamp: lastDataSent
-    };
-    SpixiAppSdk.sendNetworkData(JSON.stringify(data));
+    // Optimized: a=action, y=position (rounded to int)
+    SpixiAppSdk.sendNetworkData(JSON.stringify({a:"m",y:Math.round(gameState.localPaddle.y)}));
 }
 
 function sendStartGame() {
     lastDataSent = SpixiTools.getTimestamp();
-    const data = { action: "startGame" };
-    SpixiAppSdk.sendNetworkData(JSON.stringify(data));
+    SpixiAppSdk.sendNetworkData(JSON.stringify({a:"s"}));
 }
 
 function sendGameState() {
     lastDataSent = SpixiTools.getTimestamp();
-    const data = {
-        action: "gameState",
-        ball: gameState.ball,
-        localLives: gameState.localPaddle.lives,
-        remoteLives: gameState.remotePaddle.lives,
-        timestamp: lastDataSent
-    };
-    SpixiAppSdk.sendNetworkData(JSON.stringify(data));
+    // Optimized: a=action, b=ball(x,y,vx,vy rounded), l=local lives, r=remote lives
+    const b = gameState.ball;
+    SpixiAppSdk.sendNetworkData(JSON.stringify({
+        a:"g",
+        b:{x:Math.round(b.x),y:Math.round(b.y),vx:b.vx.toFixed(2),vy:b.vy.toFixed(2)},
+        l:gameState.localPaddle.lives,
+        r:gameState.remotePaddle.lives
+    }));
 }
 
 function sendEndGame() {
     lastDataSent = SpixiTools.getTimestamp();
-    const data = {
-        action: "endGame",
-        localLives: gameState.localPaddle.lives,
-        remoteLives: gameState.remotePaddle.lives
-    };
-    SpixiAppSdk.sendNetworkData(JSON.stringify(data));
+    SpixiAppSdk.sendNetworkData(JSON.stringify({
+        a:"e",
+        l:gameState.localPaddle.lives,
+        r:gameState.remotePaddle.lives
+    }));
 }
 
 function sendRestartRequest() {
     lastDataSent = SpixiTools.getTimestamp();
-    const data = { action: "restart" };
-    SpixiAppSdk.sendNetworkData(JSON.stringify(data));
+    SpixiAppSdk.sendNetworkData(JSON.stringify({a:"r"}));
 }
 
 function saveGameState() {
@@ -436,39 +441,58 @@ SpixiAppSdk.onInit = function(sessionId, userAddresses) {
     initGame();
     loadGameState(remotePlayerAddress);
     
-    // Show waiting screen with start button
-    document.getElementById('waiting-screen').style.display = 'none';
-    document.getElementById('game-screen').style.display = 'block';
-    document.getElementById('status-text').textContent = 'Press Start to Begin!';
+    // Send hello message immediately
+    SpixiAppSdk.sendNetworkData(JSON.stringify({a:"h"}));
+    helloSent = true;
+    
+    // Show waiting screen
+    document.getElementById('waiting-screen').style.display = 'flex';
+    document.getElementById('game-screen').style.display = 'none';
+    document.querySelector('#waiting-screen p').textContent = 'Connecting to opponent...';
 };
 
 SpixiAppSdk.onNetworkData = function(senderAddress, data) {
     playerLastSeen = SpixiTools.getTimestamp();
     
     try {
-        const parsedData = JSON.parse(data);
+        const d = JSON.parse(data);
         
-        switch(parsedData.action) {
-            case "ping":
+        switch(d.a) {
+            case "h": // hello
+                helloReceived = true;
+                if (helloSent && !bothUsersPresent) {
+                    bothUsersPresent = true;
+                    // Both users present, show game screen
+                    document.getElementById('waiting-screen').style.display = 'none';
+                    document.getElementById('game-screen').style.display = 'block';
+                    document.getElementById('status-text').textContent = 'Press Start to Begin!';
+                }
+                break;
+                
+            case "p": // ping
                 // Connection alive
                 break;
                 
-            case "paddleMove":
-                gameState.remotePaddle.y = parsedData.y;
+            case "m": // paddle move
+                gameState.remotePaddle.y = d.y;
                 break;
                 
-            case "startGame":
+            case "s": // start game
                 if (gameState.waitingForStart) {
                     gameState.waitingForStart = false;
                     startGame();
                 }
                 break;
                 
-            case "gameState":
+            case "g": // game state
                 if (!gameState.isHost) {
-                    gameState.ball = parsedData.ball;
-                    gameState.localPaddle.lives = parsedData.remoteLives;
-                    gameState.remotePaddle.lives = parsedData.localLives;
+                    const b = d.b;
+                    gameState.ball.x = b.x;
+                    gameState.ball.y = b.y;
+                    gameState.ball.vx = parseFloat(b.vx);
+                    gameState.ball.vy = parseFloat(b.vy);
+                    gameState.localPaddle.lives = d.r;
+                    gameState.remotePaddle.lives = d.l;
                     updateLivesDisplay();
                     
                     if (gameState.localPaddle.lives <= 0) {
@@ -479,15 +503,15 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
                 }
                 break;
                 
-            case "endGame":
+            case "e": // end game
                 if (!gameState.gameEnded) {
-                    gameState.localPaddle.lives = parsedData.remoteLives;
-                    gameState.remotePaddle.lives = parsedData.localLives;
+                    gameState.localPaddle.lives = d.r;
+                    gameState.remotePaddle.lives = d.l;
                     endGame(gameState.localPaddle.lives > gameState.remotePaddle.lives);
                 }
                 break;
                 
-            case "restart":
+            case "r": // restart
                 if (gameState.gameEnded) {
                     restartGame();
                 }
