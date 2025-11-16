@@ -341,13 +341,18 @@ function gameLoop() {
             checkScore();
         }
     } else {
-        // Non-owner: always interpolate (even when ball is stationary)
-        if (gameState.ball.vx !== 0 || ballTarget.vx !== 0) {
+        // Non-owner: interpolate ball movement
+        const ballHasVelocity = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
+        const targetHasVelocity = Math.abs(ballTarget.vx) > 0.1 || Math.abs(ballTarget.vy) > 0.1;
+        
+        if (ballHasVelocity || targetHasVelocity) {
             interpolateBall();
         } else {
-            // Keep ball centered if not moving
+            // Ball is truly stationary - keep at target position
             gameState.ball.x = ballTarget.x;
             gameState.ball.y = ballTarget.y;
+            gameState.ball.vx = 0;
+            gameState.ball.vy = 0;
         }
     }
     
@@ -390,17 +395,28 @@ function interpolateBall() {
     // Advanced interpolation with prediction and smoothing
     const lerpFactor = 0.3; // Slower lerp for smoother visuals
     
-    // Calculate prediction based on velocity
-    const predictedX = ballTarget.x + ballTarget.vx * 0.8;
-    const predictedY = ballTarget.y + ballTarget.vy * 0.8;
+    // Check if we have valid target velocity
+    const hasVelocity = Math.abs(ballTarget.vx) > 0.1 || Math.abs(ballTarget.vy) > 0.1;
     
-    // Interpolate towards predicted position
-    gameState.ball.x += (predictedX - gameState.ball.x) * lerpFactor;
-    gameState.ball.y += (predictedY - gameState.ball.y) * lerpFactor;
-    
-    // Smooth velocity interpolation
-    gameState.ball.vx += (ballTarget.vx - gameState.ball.vx) * lerpFactor;
-    gameState.ball.vy += (ballTarget.vy - gameState.ball.vy) * lerpFactor;
+    if (hasVelocity) {
+        // Calculate prediction based on velocity
+        const predictedX = ballTarget.x + ballTarget.vx * 0.8;
+        const predictedY = ballTarget.y + ballTarget.vy * 0.8;
+        
+        // Interpolate towards predicted position
+        gameState.ball.x += (predictedX - gameState.ball.x) * lerpFactor;
+        gameState.ball.y += (predictedY - gameState.ball.y) * lerpFactor;
+        
+        // Smooth velocity interpolation
+        gameState.ball.vx += (ballTarget.vx - gameState.ball.vx) * lerpFactor;
+        gameState.ball.vy += (ballTarget.vy - gameState.ball.vy) * lerpFactor;
+    } else {
+        // If no velocity in target, directly sync position
+        gameState.ball.x = ballTarget.x;
+        gameState.ball.y = ballTarget.y;
+        gameState.ball.vx = ballTarget.vx;
+        gameState.ball.vy = ballTarget.vy;
+    }
     
     // Keep ball visible and in bounds
     gameState.ball.x = Math.max(BALL_SIZE, Math.min(CANVAS_WIDTH - BALL_SIZE, gameState.ball.x));
@@ -690,13 +706,13 @@ function sendGameState() {
     lastDataSent = currentTime;
     
     const paddleY = Math.round(gameState.localPaddle.y);
-    
-    // Only send if paddle moved or ball is active
     const paddleMoved = Math.abs(paddleY - lastSentPaddleY) > 0;
     const ballActive = gameState.ball.vx !== 0;
+    const isBallOwnerWithActiveBall = gameState.isBallOwner && ballActive;
     
-    if (!paddleMoved && !ballActive) {
-        return; // Skip sending if nothing changed
+    // Always send if ball is active (critical for sync), or if paddle moved
+    if (!paddleMoved && !isBallOwnerWithActiveBall) {
+        return; // Skip only if nothing is happening
     }
     
     lastSentPaddleY = paddleY;
@@ -708,8 +724,8 @@ function sendGameState() {
         p: paddleY // Paddle position
     };
     
-    // Include ball data only if this player owns the ball and it's active
-    if (gameState.isBallOwner && ballActive) {
+    // Include ball data if this player owns the ball and it's active
+    if (isBallOwnerWithActiveBall) {
         const b = gameState.ball;
         state.b = {
             x: Math.round(b.x),
@@ -818,18 +834,21 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
                 
                 // Update ball state if included and we don't own the ball
                 if (msg.b && !gameState.isBallOwner) {
-                    // Update target for smooth interpolation
+                    // Always update target with latest data
                     ballTarget.x = msg.b.x;
                     ballTarget.y = msg.b.y;
                     ballTarget.vx = msg.b.vx;
                     ballTarget.vy = msg.b.vy;
                     
-                    // Snap if ball just started or is very far away
+                    // Calculate distance for snap decision
                     const distance = Math.sqrt(
                         Math.pow(gameState.ball.x - msg.b.x, 2) + 
                         Math.pow(gameState.ball.y - msg.b.y, 2)
                     );
-                    if (gameState.ball.vx === 0 || distance > 200) {
+                    
+                    // Snap if: ball just started, very far away, or current velocity is near zero
+                    const currentSpeed = Math.sqrt(gameState.ball.vx * gameState.ball.vx + gameState.ball.vy * gameState.ball.vy);
+                    if (currentSpeed < 0.5 || distance > 200) {
                         gameState.ball.x = msg.b.x;
                         gameState.ball.y = msg.b.y;
                         gameState.ball.vx = msg.b.vx;
