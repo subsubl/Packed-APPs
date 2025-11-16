@@ -759,17 +759,12 @@ function sendEndGame() {
 }
 
 function saveGameState() {
+    // Save final game state for statistics/history (optional)
     if (remotePlayerAddress !== '') {
         setTimeout(() => {
             SpixiAppSdk.setStorageData(remotePlayerAddress, btoa(JSON.stringify(gameState)));
         }, 50);
     }
-}
-
-function loadGameState(playerAddress) {
-    setTimeout(() => {
-        SpixiAppSdk.getStorageData(playerAddress);
-    }, 50);
 }
 
 // Spixi SDK callbacks
@@ -781,16 +776,20 @@ SpixiAppSdk.onInit = function(sid, userAddresses) {
     // Determine which side we're on (left or right)
     gameState.isLeftPlayer = sessionId < remotePlayerAddress;
     
+    // Initialize game UI and start connection
     initGame();
-    loadGameState(remotePlayerAddress);
-    
-    // Start connection handshake
     establishConnection();
     
-    // Show waiting screen
-    document.getElementById('waiting-screen').style.display = 'flex';
-    document.getElementById('game-screen').style.display = 'none';
-    document.querySelector('#waiting-screen p').textContent = 'Connecting to opponent...';
+    // Show waiting screen - always start with fresh game
+    const waitingScreen = document.getElementById('waiting-screen');
+    const gameScreen = document.getElementById('game-screen');
+    waitingScreen.style.display = 'flex';
+    gameScreen.style.display = 'none';
+    
+    const waitingText = document.querySelector('.waiting-text');
+    if (waitingText) {
+        waitingText.textContent = 'Connecting to opponent...';
+    }
 };
 
 SpixiAppSdk.onNetworkData = function(senderAddress, data) {
@@ -888,16 +887,15 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
 };
 
 SpixiAppSdk.onStorageData = function(key, value) {
+    // Storage is only used to save final game state
+    // Don't restore old game state on startup - always start fresh
     if (value !== 'null') {
         try {
             const savedState = JSON.parse(atob(value));
-            if (savedState.gameEnded) {
-                gameState = savedState;
-                updateLivesDisplay();
-                endGame(gameState.localPaddle.lives > gameState.remotePaddle.lives);
-            }
+            // Ignore saved state - we always want to start a new game
+            console.log("Previous game state found but ignored - starting fresh");
         } catch (e) {
-            console.error("Error loading saved state:", e);
+            console.error("Error parsing saved state:", e);
         }
     }
 };
