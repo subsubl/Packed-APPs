@@ -179,6 +179,16 @@ function setupControls() {
         });
     }
     
+    // Shoot button
+    const shootBtn = document.getElementById('shootBtn');
+    if (shootBtn) {
+        shootBtn.addEventListener('click', () => {
+            if (gameState.isBallOwner && gameState.ball.vx === 0) {
+                launchBall();
+            }
+        });
+    }
+    
     // Restart button
     document.getElementById('restartBtn').addEventListener('click', restartGame);
     
@@ -217,12 +227,23 @@ function startCountdown() {
 
 function startGame() {
     document.getElementById('startBtn').style.display = 'none';
-    document.getElementById('status-text').textContent = 'GET READY!';
     
     // Randomly determine who controls the ball
     const combinedId = sessionId + remotePlayerAddress;
     const hash = Array.from(combinedId).reduce((acc, char) => acc + char.charCodeAt(0), 0);
     gameState.isBallOwner = hash % 2 === (sessionId < remotePlayerAddress ? 0 : 1);
+    
+    // Show shoot button for both players
+    const shootBtn = document.getElementById('shootBtn');
+    shootBtn.style.display = 'inline-block';
+    
+    if (gameState.isBallOwner) {
+        document.getElementById('status-text').textContent = 'CLICK SHOOT TO START!';
+        shootBtn.disabled = false;
+    } else {
+        document.getElementById('status-text').textContent = 'OPPONENT WILL SHOOT...';
+        shootBtn.disabled = true;
+    }
     
     gameState.gameStarted = true;
     gameState.lastUpdate = SpixiTools.getTimestamp();
@@ -242,17 +263,11 @@ function startGame() {
     if (!gameLoopInterval) {
         gameLoopInterval = setInterval(gameLoop, 1000 / FRAME_RATE);
     }
-    
-    // Auto-launch ball after 1 second
-    setTimeout(() => {
-        if (gameState.isBallOwner) {
-            launchBall();
-        }
-    }, 1000);
 }
 
 function launchBall() {
     if (gameState.ball.vx === 0 && gameState.isBallOwner) {
+        document.getElementById('shootBtn').style.display = 'none';
         document.getElementById('status-text').textContent = 'PONG!';
         
         // Initialize ball velocity
@@ -539,6 +554,7 @@ function restartGame() {
     document.getElementById('startBtn').style.display = 'inline-block';
     document.getElementById('startBtn').disabled = false;
     document.getElementById('startBtn').textContent = 'START';
+    document.getElementById('shootBtn').style.display = 'none';
     document.getElementById('status-text').textContent = 'PRESS START!';
     
     updateLivesDisplay();
@@ -664,8 +680,11 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
                 break;
                 
             case "launch":
-                // Other player launched the ball
-                document.getElementById('status-text').textContent = 'Game On!';
+                // Ball owner has launched - hide shoot button and update status
+                if (!gameState.isBallOwner) {
+                    document.getElementById('shootBtn').style.display = 'none';
+                    document.getElementById('status-text').textContent = 'PONG!';
+                }
                 break;
                 
             case "paddle":

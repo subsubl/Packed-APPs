@@ -175,6 +175,40 @@ body {
     cursor: not-allowed;
 }
 
+.shoot-btn {
+    background: #000000;
+    animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+.shoot-btn:hover:not(:disabled) {
+    background: #00ff00;
+    color: #000000;
+    text-shadow: none;
+    box-shadow: 0 0 20px #00ff00;
+}
+
+.shoot-btn:active:not(:disabled) {
+    box-shadow: 0 0 30px #00ff00;
+}
+
+.shoot-btn:disabled {
+    opacity: 0.2;
+    cursor: not-allowed;
+    animation: none;
+    border-color: #003300;
+    color: #003300;
+    text-shadow: none;
+}
+
+@keyframes pulse-glow {
+    0%, 100% {
+        box-shadow: 0 0 10px #00ff00;
+    }
+    50% {
+        box-shadow: 0 0 20px #00ff00, 0 0 30px #00ff00;
+    }
+}
+
 .exit-btn {
     background: #000000;
 }
