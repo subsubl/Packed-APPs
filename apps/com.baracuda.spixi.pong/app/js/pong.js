@@ -292,10 +292,10 @@ function gameLoop() {
     
     if (ballHasVelocity) {
         updateBall();
+        checkCollisions();
         
-        // Only ball owner checks collisions and score
+        // Only ball owner checks score (game logic authority)
         if (gameState.isBallOwner) {
-            checkCollisions();
             checkScore();
         }
     }
@@ -644,9 +644,20 @@ function sendGameState() {
         p: paddleY // Paddle position (always included)
     };
     
-    // Include ball data if this player owns the ball and it's active
+    // Send ball data if ball is moving toward my side
     const ballActive = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
-    if (gameState.isBallOwner && ballActive) {
+    
+    // Determine which side ball is moving toward based on velocity
+    let ballMovingTowardMe = false;
+    if (gameState.isBallOwner) {
+        // Ball owner on right - ball coming toward me if vx > 0 (moving right)
+        ballMovingTowardMe = gameState.ball.vx > 0;
+    } else {
+        // Non-owner on left - ball coming toward me if vx < 0 (moving left)
+        ballMovingTowardMe = gameState.ball.vx < 0;
+    }
+    
+    if (ballActive && ballMovingTowardMe) {
         const b = gameState.ball;
         // Mirror X coordinates for opponent's view (they see from opposite side)
         state.b = {
@@ -773,8 +784,8 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
                     remotePaddleTarget = msg.p;
                 }
                 
-                // Non-owner readjusts ball when velocity changes (bounce detected)
-                if (msg.b && !gameState.isBallOwner) {
+                // Readjust ball when receiving data (both players can send now)
+                if (msg.b) {
                     // Convert from sender's coordinate system to ours (mirror X)
                     const mirroredX = CANVAS_WIDTH - msg.b.x;
                     const mirroredVx = -msg.b.vx;
