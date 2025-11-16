@@ -11,8 +11,8 @@ const PADDLE_SPEED = 8;
 const BALL_SPEED_INITIAL = 6;
 const BALL_SPEED_INCREMENT = 0.3;
 const MAX_LIVES = 3;
-const FRAME_RATE = 60;
-const PADDLE_UPDATE_RATE = 16; // Send paddle updates ~60fps
+const FRAME_RATE = 60; // Render at 60fps
+const NETWORK_SEND_RATE = 100; // Send network updates at 10fps (100ms)
 
 // Game state
 let gameState = {
@@ -40,12 +40,10 @@ let ballTarget = {
 };
 let ballInterpolationSpeed = 0.5; // Higher = faster catch-up
 let lastBallUpdate = Date.now();
-const BALL_UPDATE_RATE = 16; // Send every 16ms (60fps) for smooth sync
-const SYNC_RATE = 12; // Unified state update rate (83fps for better sync)
 
-// Paddle interpolation for smooth remote paddle
+// Paddle interpolation for smooth remote paddle (60fps rendering from 10fps network data)
 let remotePaddleTarget = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2;
-const PADDLE_LERP_FACTOR = 0.5; // Faster interpolation for better responsiveness
+const PADDLE_LERP_FACTOR = 0.25; // Slower lerp for smooth 60fps interpolation from 10fps data
 
 let canvas, ctx;
 let remotePlayerAddress = '';
@@ -308,11 +306,11 @@ function gameLoop() {
     
     render();
     
-    // Send unified game state at consistent rate
+    // Send unified game state at 10fps (every 100ms)
     const currentTime = Date.now();
     const timeSinceLastSync = currentTime - lastSyncTime;
     
-    if (timeSinceLastSync >= SYNC_RATE) {
+    if (timeSinceLastSync >= NETWORK_SEND_RATE) {
         sendGameState();
         lastSyncTime = currentTime;
     }
@@ -342,24 +340,25 @@ function updateBall() {
 }
 
 function interpolateBall() {
-    // Advanced interpolation with prediction and smoothing
-    const lerpFactor = 0.4; // Balanced lerp for smooth but responsive visuals
+    // Advanced interpolation with prediction (60fps render from 10fps network data)
+    const lerpFactor = 0.2; // Slower lerp for smooth interpolation from 10fps updates
     
     // Check if we have valid target velocity
     const hasVelocity = Math.abs(ballTarget.vx) > 0.1 || Math.abs(ballTarget.vy) > 0.1;
     
     if (hasVelocity) {
-        // Calculate prediction based on velocity with adaptive factor
-        const predictedX = ballTarget.x + ballTarget.vx * 1.0;
-        const predictedY = ballTarget.y + ballTarget.vy * 1.0;
+        // Predict ahead more aggressively since updates are 10fps
+        const predictAhead = 6; // Predict 6 frames ahead to compensate for 10fps updates
+        const predictedX = ballTarget.x + ballTarget.vx * predictAhead;
+        const predictedY = ballTarget.y + ballTarget.vy * predictAhead;
         
         // Interpolate towards predicted position
         gameState.ball.x += (predictedX - gameState.ball.x) * lerpFactor;
         gameState.ball.y += (predictedY - gameState.ball.y) * lerpFactor;
         
-        // Smooth velocity interpolation with faster convergence
-        gameState.ball.vx += (ballTarget.vx - gameState.ball.vx) * 0.5;
-        gameState.ball.vy += (ballTarget.vy - gameState.ball.vy) * 0.5;
+        // Smooth velocity interpolation
+        gameState.ball.vx += (ballTarget.vx - gameState.ball.vx) * 0.3;
+        gameState.ball.vy += (ballTarget.vy - gameState.ball.vy) * 0.3;
     } else {
         // If no velocity in target, directly sync position
         gameState.ball.x = ballTarget.x;
@@ -629,33 +628,27 @@ function exitGame() {
     SpixiAppSdk.spixiAction("close");
 }
 
-// Network functions - Unified game state sync
+// Network functions - Unified game state sync at 10fps (100ms intervals)
 function sendGameState() {
+    if (!gameState.gameStarted || gameState.gameEnded) {
+        return; // Don't send if game not active
+    }
+    
     const currentTime = SpixiTools.getTimestamp();
     lastDataSent = currentTime;
     
     const paddleY = Math.round(gameState.localPaddle.y);
-    const ballActive = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
-    const isBallOwnerWithActiveBall = gameState.isBallOwner && ballActive;
     
-    // Send more frequently: always send when ball is active, or every few frames for paddle
-    const shouldSendPaddle = (frameCounter % 2 === 0); // Send paddle every other frame
-    
-    if (!shouldSendPaddle && !isBallOwnerWithActiveBall) {
-        return; // Skip if not time for paddle update and no ball
-    }
-    
-    lastSentPaddleY = paddleY;
-    
-    // Build unified state packet
+    // Build unified state packet with paddle (always)
     const state = {
         a: "state",
         f: frameCounter, // Frame number for sync
-        p: paddleY // Paddle position
+        p: paddleY // Paddle position (always included)
     };
     
     // Include ball data if this player owns the ball and it's active
-    if (isBallOwnerWithActiveBall) {
+    const ballActive = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
+    if (gameState.isBallOwner && ballActive) {
         const b = gameState.ball;
         state.b = {
             x: Math.round(b.x),
@@ -669,6 +662,7 @@ function sendGameState() {
 }
 
 function sendLifeUpdate() {
+    // Send life updates sporadically (only when score changes, not on timer)
     const currentTime = SpixiTools.getTimestamp();
     lastDataSent = currentTime;
     SpixiAppSdk.sendNetworkData(JSON.stringify({
