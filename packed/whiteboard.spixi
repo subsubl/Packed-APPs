@@ -9,5 +9,5 @@ minUsers =
 maxUsers = 3
 protocols = 
 contentUrl = whiteboard.zip
-checksum = 710d646dc467bc84203dcae77bb14d5d00e3481b012b2938b7d3108c9ba615ac
+checksum = fd202eac98e561dc8c5db681f25939e5e903989e36de8800c44d89fd38deca8d
 contentSize = 522044
