@@ -1,0 +1,9 @@
+caVersion = 0
+id = com.ixilabs.spixi.coinflip
+publisher = IXI Labs
+name = Coin Flip
+version = 1.0.1
+capabilities = multiUser,transactionSigning
+maxUsers = 2
+minUsers = 2
+icon = icon.png
