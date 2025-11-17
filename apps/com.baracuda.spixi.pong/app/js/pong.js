@@ -133,6 +133,15 @@ let networkRateTestStart = 0;
 let networkRateTestPackets = [];
 const NETWORK_RATE_TEST_DURATION = 3000; // 3 seconds
 
+// Clock synchronization (NTP-style)
+let clockOffset = 0; // Difference between our clock and remote clock
+let clockSyncActive = false;
+let clockSyncSamples = [];
+let clockSyncRequestTime = 0;
+const CLOCK_SYNC_SAMPLES_NEEDED = 5; // Number of samples for accurate sync
+const CLOCK_SYNC_INTERVAL = 200; // Request every 200ms during sync phase
+let clockSyncInterval = null;
+
 // Sound system
 let audioContext;
 let soundEnabled = true;
@@ -357,11 +366,106 @@ let gameLoopInterval = null;
 let connectionRetryInterval = null;
 let disconnectCheckInterval = null;
 
+// Clock synchronization functions (NTP-style algorithm)
+function startClockSync() {
+    clockSyncActive = true;
+    clockSyncSamples = [];
+    console.log('Starting clock synchronization...');
+    
+    // Send first sync request immediately
+    sendClockSyncRequest();
+    
+    // Send additional requests every 200ms
+    clockSyncInterval = setInterval(() => {
+        if (clockSyncSamples.length < CLOCK_SYNC_SAMPLES_NEEDED) {
+            sendClockSyncRequest();
+        } else {
+            // We have enough samples - calculate offset
+            finishClockSync();
+        }
+    }, CLOCK_SYNC_INTERVAL);
+}
+
+function sendClockSyncRequest() {
+    clockSyncRequestTime = Date.now();
+    SpixiAppSdk.sendNetworkData(JSON.stringify({ 
+        a: "clockSync",
+        t1: clockSyncRequestTime
+    }));
+}
+
+function handleClockSyncRequest(t1) {
+    // Respond with their timestamp and our current time
+    const t2 = Date.now();
+    SpixiAppSdk.sendNetworkData(JSON.stringify({ 
+        a: "clockSyncResponse",
+        t1: t1,  // Their original send time
+        t2: t2   // Our receive/send time
+    }));
+}
+
+function handleClockSyncResponse(t1, t2) {
+    const t3 = Date.now(); // Our receive time
+    
+    // Calculate round-trip time and offset using NTP algorithm
+    // RTT = (t3 - t1)
+    // Offset = ((t2 - t1) + (t2 - t3)) / 2
+    const rtt = t3 - t1;
+    const offset = ((t2 - t1) + (t2 - t3)) / 2;
+    
+    // Store sample with RTT for filtering
+    clockSyncSamples.push({ offset, rtt });
+    
+    console.log(`Clock sync sample ${clockSyncSamples.length}: offset=${offset.toFixed(1)}ms, RTT=${rtt.toFixed(1)}ms`);
+}
+
+function finishClockSync() {
+    clockSyncActive = false;
+    
+    // Clear interval
+    if (clockSyncInterval) {
+        clearInterval(clockSyncInterval);
+        clockSyncInterval = null;
+    }
+    
+    // Filter out samples with high RTT (>150ms) as they're unreliable
+    const goodSamples = clockSyncSamples.filter(s => s.rtt < 150);
+    
+    if (goodSamples.length === 0) {
+        console.warn('No good clock sync samples - using default offset 0');
+        clockOffset = 0;
+    } else {
+        // Use median offset from good samples for robustness
+        const offsets = goodSamples.map(s => s.offset).sort((a, b) => a - b);
+        clockOffset = offsets[Math.floor(offsets.length / 2)];
+        console.log(`Clock synchronized: offset=${clockOffset.toFixed(1)}ms (${goodSamples.length} samples)`);
+    }
+    
+    // Update status label
+    const statusLabel = document.querySelector('.status-label');
+    if (statusLabel) {
+        statusLabel.textContent = 'Synced';
+    }
+    
+    // Now start network rate test
+    startNetworkRateTest();
+}
+
+// Get synchronized time
+function getSyncedTime() {
+    return Date.now() + clockOffset;
+}
+
 // Network rate test functions
 function startNetworkRateTest() {
     networkRateTestActive = true;
     networkRateTestStart = Date.now();
     networkRateTestPackets = [];
+    
+    // Update status label
+    const statusLabel = document.querySelector('.status-label');
+    if (statusLabel) {
+        statusLabel.textContent = 'Testing Network...';\n    }
     
     console.log('Starting network rate test...');
 }
@@ -406,7 +510,7 @@ function checkNetworkRateTest() {
         // Update status label
         const statusLabel = document.querySelector('.status-label');
         if (statusLabel) {
-            statusLabel.textContent = 'Connected';
+            statusLabel.textContent = 'Ready';
         }
         
         // Now transition to game screen
@@ -453,19 +557,31 @@ function handleConnectionEstablished() {
     // Update connection status
     const statusLabel = document.querySelector('.status-label');
     if (statusLabel) {
-        statusLabel.textContent = 'Testing Connection...';
+        statusLabel.textContent = 'Synchronizing...';
     }
     
-    // Start network rate detection test
-    startNetworkRateTest();
+    // Start clock synchronization first, then network rate test
+    startClockSync();
     
-    // Start regular ping
+    // Start regular ping and periodic clock sync
     if (!pingInterval) {
+        let pingCounter = 0;
         pingInterval = setInterval(() => {
             const currentTime = SpixiTools.getTimestamp();
             if (currentTime - lastDataSent >= 2) {
                 lastDataSent = currentTime;
-                SpixiAppSdk.sendNetworkData(JSON.stringify({ a: "ping" }));
+                
+                // Every 5th ping (every 10 seconds), do a clock sync request
+                pingCounter++;
+                if (pingCounter % 5 === 0) {
+                    clockSyncRequestTime = Date.now();
+                    SpixiAppSdk.sendNetworkData(JSON.stringify({ 
+                        a: "clockSyncMaintenance",
+                        t1: clockSyncRequestTime
+                    }));
+                } else {
+                    SpixiAppSdk.sendNetworkData(JSON.stringify({ a: "ping" }));
+                }
             }
         }, 2000);
     }
@@ -1969,6 +2085,41 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
                 // Only establish connection if we have both random numbers and not already connected
                 if (!connectionEstablished && remoteRandomNumber !== null) {
                     handleConnectionEstablished();
+                }
+                break;
+                
+            case "clockSync":
+                // Remote player wants to sync their clock with ours
+                handleClockSyncRequest(msg.t1);
+                break;
+                
+            case "clockSyncResponse":
+                // Received clock sync response
+                if (clockSyncActive && msg.t1 !== undefined && msg.t2 !== undefined) {
+                    handleClockSyncResponse(msg.t1, msg.t2);
+                }
+                break;
+                
+            case "clockSyncMaintenance":
+                // Periodic clock sync during gameplay
+                const t2 = Date.now();
+                SpixiAppSdk.sendNetworkData(JSON.stringify({ 
+                    a: "clockSyncMaintenanceResponse",
+                    t1: msg.t1,
+                    t2: t2
+                }));
+                break;
+                
+            case "clockSyncMaintenanceResponse":
+                // Update clock offset during gameplay
+                if (msg.t1 !== undefined && msg.t2 !== undefined) {
+                    const t3 = Date.now();
+                    const rtt = t3 - msg.t1;
+                    const newOffset = ((msg.t2 - msg.t1) + (msg.t2 - t3)) / 2;
+                    
+                    // Gently adjust clock offset (weighted average)
+                    clockOffset = clockOffset * 0.8 + newOffset * 0.2;
+                    console.log(`Clock sync update: offset=${clockOffset.toFixed(1)}ms, RTT=${rtt.toFixed(1)}ms`);
                 }
                 break;
                 
