@@ -563,32 +563,60 @@ function updateBall() {
 
 /**
  * Ball interpolation for non-authoritative client
- * Smoothly interpolate ball toward target position received from authoritative player
+ * Uses velocity-based extrapolation to predict ball position at 60fps
+ * from 10fps network updates (every ~100ms)
+ * 
+ * This creates smooth motion by:
+ * 1. Moving ball forward using current velocity (like authoritative player)
+ * 2. Gently correcting position toward target to fix drift
+ * 3. Snapping velocity on large changes (indicates bounce/collision)
  */
 function updateBallInterpolation() {
+    // First, extrapolate position using current velocity (like local simulation)
+    // This gives us smooth 60fps motion between network updates
+    gameState.ball.x += gameState.ball.vx;
+    gameState.ball.y += gameState.ball.vy;
+    
+    // Handle wall bounces locally for smooth response
+    if (gameState.ball.y <= BALL_SIZE / 2 || gameState.ball.y >= CANVAS_HEIGHT - BALL_SIZE / 2) {
+        gameState.ball.vy = -gameState.ball.vy;
+        gameState.ball.y = Math.max(BALL_SIZE / 2, Math.min(CANVAS_HEIGHT - BALL_SIZE / 2, gameState.ball.y));
+    }
+    
+    // Now gently correct any drift toward authoritative position
     const distanceToTarget = Math.sqrt(
         Math.pow(gameState.ball.x - ballTarget.x, 2) + 
         Math.pow(gameState.ball.y - ballTarget.y, 2)
     );
     
-    // Snap to target if very far (>150px indicates major correction)
+    // Snap to target if very far (>150px indicates major correction needed)
     if (distanceToTarget > 150) {
         gameState.ball.x = ballTarget.x;
         gameState.ball.y = ballTarget.y;
         gameState.ball.vx = ballTarget.vx;
         gameState.ball.vy = ballTarget.vy;
-    } else if (distanceToTarget > 1) {
-        // Lerp smoothly toward target position
-        gameState.ball.x += (ballTarget.x - gameState.ball.x) * BALL_LERP_FACTOR;
-        gameState.ball.y += (ballTarget.y - gameState.ball.y) * BALL_LERP_FACTOR;
-        
-        // Also lerp velocity for smooth motion
-        gameState.ball.vx += (ballTarget.vx - gameState.ball.vx) * BALL_LERP_FACTOR;
-        gameState.ball.vy += (ballTarget.vy - gameState.ball.vy) * BALL_LERP_FACTOR;
-    } else {
-        // Very close to target, snap to it
-        gameState.ball.x = ballTarget.x;
-        gameState.ball.y = ballTarget.y;
+    } else if (distanceToTarget > 5) {
+        // Apply gentle position correction (10% per frame)
+        // This fixes drift without causing visible jumps
+        const correctionFactor = 0.1;
+        gameState.ball.x += (ballTarget.x - gameState.ball.x) * correctionFactor;
+        gameState.ball.y += (ballTarget.y - gameState.ball.y) * correctionFactor;
+    }
+    
+    // Check if velocity changed significantly (indicates bounce/collision)
+    const velocityDiff = Math.sqrt(
+        Math.pow(gameState.ball.vx - ballTarget.vx, 2) + 
+        Math.pow(gameState.ball.vy - ballTarget.vy, 2)
+    );
+    
+    // Snap velocity on significant change (bounce detected)
+    if (velocityDiff > 1.0) {
+        gameState.ball.vx = ballTarget.vx;
+        gameState.ball.vy = ballTarget.vy;
+    } else if (velocityDiff > 0.1) {
+        // Small velocity drift - correct gently
+        gameState.ball.vx += (ballTarget.vx - gameState.ball.vx) * 0.15;
+        gameState.ball.vy += (ballTarget.vy - gameState.ball.vy) * 0.15;
     }
 }
 
