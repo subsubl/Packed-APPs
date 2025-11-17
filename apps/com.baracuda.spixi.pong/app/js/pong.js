@@ -127,6 +127,133 @@ const MAX_LIVES = 3;
 const FRAME_RATE = 60; // Render at 60fps
 const NETWORK_SEND_RATE = 50; // Send network updates at 20fps (50ms)
 
+// Sound system
+let audioContext;
+let soundEnabled = true;
+
+function initAudioContext() {
+    try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+        console.warn('Web Audio API not supported');
+        soundEnabled = false;
+    }
+}
+
+function playPaddleHitSound() {
+    if (!soundEnabled || !audioContext) return;
+    
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.frequency.value = 440; // A4 note
+    oscillator.type = 'square';
+    
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.1);
+}
+
+function playWallBounceSound() {
+    if (!soundEnabled || !audioContext) return;
+    
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.frequency.value = 220; // A3 note
+    oscillator.type = 'square';
+    
+    gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.08);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.08);
+}
+
+function playScoreSound(isPositive) {
+    if (!soundEnabled || !audioContext) return;
+    
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    if (isPositive) {
+        // Victory sound - ascending notes
+        oscillator.frequency.setValueAtTime(523, audioContext.currentTime); // C5
+        oscillator.frequency.setValueAtTime(659, audioContext.currentTime + 0.1); // E5
+        oscillator.frequency.setValueAtTime(784, audioContext.currentTime + 0.2); // G5
+    } else {
+        // Loss sound - descending notes
+        oscillator.frequency.setValueAtTime(392, audioContext.currentTime); // G4
+        oscillator.frequency.setValueAtTime(330, audioContext.currentTime + 0.1); // E4
+        oscillator.frequency.setValueAtTime(262, audioContext.currentTime + 0.2); // C4
+    }
+    
+    oscillator.type = 'sine';
+    
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.3);
+}
+
+function playGameOverSound(isWinner) {
+    if (!soundEnabled || !audioContext) return;
+    
+    const notes = isWinner 
+        ? [523, 659, 784, 1047] // C5, E5, G5, C6 - victory fanfare
+        : [392, 330, 262, 196];  // G4, E4, C4, G3 - defeat
+    
+    notes.forEach((freq, index) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = freq;
+        oscillator.type = isWinner ? 'sine' : 'triangle';
+        
+        const startTime = audioContext.currentTime + (index * 0.15);
+        gainNode.gain.setValueAtTime(0.25, startTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.3);
+        
+        oscillator.start(startTime);
+        oscillator.stop(startTime + 0.3);
+    });
+}
+
+function playLaunchSound() {
+    if (!soundEnabled || !audioContext) return;
+    
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.15);
+    oscillator.type = 'sawtooth';
+    
+    gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.15);
+}
+
 // Game state
 let gameState = {
     localPaddle: { y: CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2, lives: MAX_LIVES },
@@ -379,6 +506,7 @@ function setupControls() {
     // Touch events
     wheelHandle.addEventListener('touchstart', (e) => {
         e.preventDefault();
+        if (!audioContext) initAudioContext();
         handleWheelStart(e.touches[0].clientY);
     });
     
@@ -399,6 +527,7 @@ function setupControls() {
     // Mouse events
     wheelHandle.addEventListener('mousedown', (e) => {
         e.preventDefault();
+        if (!audioContext) initAudioContext();
         handleWheelStart(e.clientY);
     });
     
@@ -422,6 +551,7 @@ function setupControls() {
     const shootBtn = document.getElementById('shootBtn');
     if (shootBtn) {
         shootBtn.addEventListener('click', () => {
+            if (!audioContext) initAudioContext();
             if (gameState.isBallOwner && gameState.ball.vx === 0) {
                 launchBall();
             }
@@ -445,6 +575,25 @@ function setupControls() {
     const exitBtn = document.getElementById('exitBtn');
     if (exitBtn) {
         exitBtn.addEventListener('click', exitGame);
+    }
+    
+    // Sound toggle button
+    const soundToggleBtn = document.getElementById('soundToggleBtn');
+    const soundOnIcon = document.getElementById('soundOnIcon');
+    const soundOffIcon = document.getElementById('soundOffIcon');
+    if (soundToggleBtn) {
+        soundToggleBtn.addEventListener('click', () => {
+            if (!audioContext) initAudioContext();
+            soundEnabled = !soundEnabled;
+            
+            if (soundEnabled) {
+                soundOnIcon.style.display = 'block';
+                soundOffIcon.style.display = 'none';
+            } else {
+                soundOnIcon.style.display = 'none';
+                soundOffIcon.style.display = 'block';
+            }
+        });
     }
 }
 
@@ -513,6 +662,7 @@ function launchBall() {
     if (gameState.ball.vx === 0 && gameState.isBallOwner) {
         document.getElementById('shootBtn').style.display = 'none';
         document.getElementById('status-text').textContent = 'Game On!';
+        playLaunchSound();
         
         // Ball owner launches - they have authority initially
         gameState.hasActiveBallAuthority = true;
@@ -684,6 +834,7 @@ function updateBallInterpolation() {
     if (gameState.ball.y <= BALL_SIZE / 2 || gameState.ball.y >= CANVAS_HEIGHT - BALL_SIZE / 2) {
         gameState.ball.vy = -gameState.ball.vy;
         gameState.ball.y = Math.max(BALL_SIZE / 2, Math.min(CANVAS_HEIGHT - BALL_SIZE / 2, gameState.ball.y));
+        playWallBounceSound();
     }
     
     // Now gently correct any drift toward authoritative position
@@ -837,6 +988,7 @@ function checkCollisions() {
         if (gameState.isBallOwner) {
             // We hit it - we now have authority
             gameState.hasActiveBallAuthority = true;
+            playPaddleHitSound();
         }
         
         // Record collision event for lag compensation
@@ -864,6 +1016,7 @@ function checkCollisions() {
         if (!gameState.isBallOwner) {
             // We hit it - we now have authority
             gameState.hasActiveBallAuthority = true;
+            playPaddleHitSound();
         }
         
         // Record collision event for lag compensation
@@ -879,8 +1032,10 @@ function checkScore() {
         // Left side (non-owner) missed
         if (gameState.isBallOwner) {
             gameState.remotePaddle.lives--;
+            playScoreSound(true); // We scored
         } else {
             gameState.localPaddle.lives--;
+            playScoreSound(false); // We lost a life
         }
         updateLivesDisplay();
         
@@ -894,8 +1049,10 @@ function checkScore() {
         // Right side (ball owner) missed
         if (gameState.isBallOwner) {
             gameState.localPaddle.lives--;
+            playScoreSound(false); // We lost a life
         } else {
             gameState.remotePaddle.lives--;
+            playScoreSound(true); // We scored
         }
         updateLivesDisplay();
         
@@ -1047,6 +1204,7 @@ function render() {
 
 function endGame(won) {
     gameState.gameEnded = true;
+    playGameOverSound(won);
     
     if (gameLoopInterval) {
         clearInterval(gameLoopInterval);
