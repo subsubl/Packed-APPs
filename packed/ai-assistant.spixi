@@ -1,0 +1,13 @@
+caVersion = 0
+id = com.mostnonameuser.spixi.aiassistant
+publisher = mostnonameuser
+name = AI Assistant
+version = 0.1.2
+capabilities = multiUser
+image = ai-assistant.png
+minUsers = 
+maxUsers = 
+protocols = com.mostnonameuser.aiassistant
+contentUrl = ai-assistant.zip
+checksum = 79c4dfb54ed87e3b8257f907681e7979f855fabf8619e19e924b99446ff92f8f
+contentSize = 89527

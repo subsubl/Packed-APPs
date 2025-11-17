@@ -1,0 +1,13 @@
+caVersion = 0
+id = com.ixilabs.spixi.auth
+publisher = IXI Labs
+name = Spixi Authenticator
+version = 1.0.0
+capabilities = singleUser, authentication, transactionSigning, registeredNamesManagement
+image = spixi-authenticator.png
+minUsers = 
+maxUsers = 
+protocols = 
+contentUrl = spixi-authenticator.zip
+checksum = 23bd6e04853456a44bdb8bcecec8273cb464e0a051c13c97fc7b53d0ed63cca3
+contentSize = 1139558

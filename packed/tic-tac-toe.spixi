@@ -9,5 +9,5 @@ minUsers =
 maxUsers = 2
 protocols = 
 contentUrl = tic-tac-toe.zip
-checksum = 4910b27721806151c9147d855d45a3cbb5a420c853d3ef0a52e5cc1adb11f20b
+checksum = c17fd6c09c97b2155d20e9f358ac36093cbf0d17e34be09bada622e3e4ff390c
 contentSize = 460864
