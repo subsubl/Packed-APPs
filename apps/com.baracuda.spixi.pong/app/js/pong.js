@@ -146,6 +146,15 @@ let gameState = {
 // Ball sync state: authority switches between players on each paddle hit
 // Each player simulates ball locally when they have authority (after hitting it)
 
+// Ball interpolation for non-authoritative client (smooth remote ball)
+let ballTarget = {
+    x: CANVAS_WIDTH / 2,
+    y: CANVAS_HEIGHT / 2,
+    vx: 0,
+    vy: 0
+};
+const BALL_LERP_FACTOR = 0.3; // Interpolation factor for smooth ball movement
+
 // Paddle interpolation for smooth remote paddle (60fps rendering from 10fps network data)
 let remotePaddleTarget = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2;
 const PADDLE_LERP_FACTOR = 0.25; // Slower lerp for smooth 60fps interpolation from 10fps data
@@ -451,7 +460,7 @@ function gameLoop() {
     const ballHasVelocity = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
     
     if (ballHasVelocity) {
-        // Only simulate ball if we have authority
+        // Simulate ball if we have authority, otherwise interpolate toward target
         if (gameState.hasActiveBallAuthority) {
             updateBall();
             checkCollisions();
@@ -460,9 +469,13 @@ function gameLoop() {
             if (gameState.isBallOwner) {
                 checkScore();
             }
+        } else {
+            // We don't have authority - interpolate toward target for smooth motion
+            updateBallInterpolation();
         }
-    } else {
-        // Ball hasn't been launched yet - keep it attached to paddle
+    } else if (gameState.hasActiveBallAuthority) {
+        // Ball hasn't been launched yet - only show on serving player's side
+        // Keep it attached to paddle
         if (gameState.isBallOwner) {
             // Ball owner on right
             gameState.ball.x = CANVAS_WIDTH - 20 - PADDLE_WIDTH - BALL_SIZE;
@@ -548,7 +561,36 @@ function updateBall() {
     }
 }
 
-// Dead reckoning / interpolation helpers removed from runtime path
+/**
+ * Ball interpolation for non-authoritative client
+ * Smoothly interpolate ball toward target position received from authoritative player
+ */
+function updateBallInterpolation() {
+    const distanceToTarget = Math.sqrt(
+        Math.pow(gameState.ball.x - ballTarget.x, 2) + 
+        Math.pow(gameState.ball.y - ballTarget.y, 2)
+    );
+    
+    // Snap to target if very far (>150px indicates major correction)
+    if (distanceToTarget > 150) {
+        gameState.ball.x = ballTarget.x;
+        gameState.ball.y = ballTarget.y;
+        gameState.ball.vx = ballTarget.vx;
+        gameState.ball.vy = ballTarget.vy;
+    } else if (distanceToTarget > 1) {
+        // Lerp smoothly toward target position
+        gameState.ball.x += (ballTarget.x - gameState.ball.x) * BALL_LERP_FACTOR;
+        gameState.ball.y += (ballTarget.y - gameState.ball.y) * BALL_LERP_FACTOR;
+        
+        // Also lerp velocity for smooth motion
+        gameState.ball.vx += (ballTarget.vx - gameState.ball.vx) * BALL_LERP_FACTOR;
+        gameState.ball.vy += (ballTarget.vy - gameState.ball.vy) * BALL_LERP_FACTOR;
+    } else {
+        // Very close to target, snap to it
+        gameState.ball.x = ballTarget.x;
+        gameState.ball.y = ballTarget.y;
+    }
+}
 
 /**
  * Record collision event with timestamp for lag compensation
@@ -862,11 +904,14 @@ function render() {
     ctx.fillStyle = leftPaddleColor;
     ctx.fillRect(leftPaddleX, leftPaddleY, PADDLE_WIDTH, PADDLE_HEIGHT);
     
-    // Draw ball - always white
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(gameState.ball.x, gameState.ball.y, BALL_SIZE / 2, 0, Math.PI * 2);
-    ctx.fill();
+    // Draw ball - only if it has velocity OR we have authority (waiting to serve)
+    const ballVisible = (Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1) || gameState.hasActiveBallAuthority;
+    if (ballVisible) {
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(gameState.ball.x, gameState.ball.y, BALL_SIZE / 2, 0, Math.PI * 2);
+        ctx.fill();
+    }
 }
 
 function endGame(won) {
@@ -1393,6 +1438,12 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
                         const mirroredX = CANVAS_WIDTH - msg.b.x;
                         const mirroredVx = -msg.b.vx;
                         
+                        // Set as interpolation target
+                        ballTarget.x = mirroredX;
+                        ballTarget.y = msg.b.y;
+                        ballTarget.vx = mirroredVx;
+                        ballTarget.vy = msg.b.vy;
+                        
                         gameState.ball.x = mirroredX;
                         gameState.ball.y = msg.b.y;
                         gameState.ball.vx = mirroredVx;
@@ -1454,6 +1505,12 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
                     // Convert from sender's coordinate system to ours (mirror X)
                     const mirroredX = CANVAS_WIDTH - msg.x;
                     const mirroredVx = -msg.vx;
+                    
+                    // Set as interpolation target
+                    ballTarget.x = mirroredX;
+                    ballTarget.y = msg.y;
+                    ballTarget.vx = mirroredVx;
+                    ballTarget.vy = msg.vy;
                     
                     // Snap to their state immediately (they have authority now)
                     gameState.ball.x = mirroredX;
