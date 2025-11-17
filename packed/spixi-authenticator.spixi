@@ -9,5 +9,5 @@ minUsers =
 maxUsers = 
 protocols = 
 contentUrl = spixi-authenticator.zip
-checksum = 64a338747811a930d64b2b94e75c7d917374eaf1cd81b65b4a03c0210fc8c2a1
+checksum = 05d92bedab7c22e40d1bdf1bb0b4360c6e36898eddebca4da3e1a0938d12abaf
 contentSize = 1139558

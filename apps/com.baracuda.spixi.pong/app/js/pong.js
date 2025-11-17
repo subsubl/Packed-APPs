@@ -136,14 +136,15 @@ let gameState = {
         vx: 0,
         vy: 0
     },
-    isBallOwner: false, // Who controls the ball (randomly assigned)
+    isBallOwner: false, // Who controls the ball (randomly assigned at start)
+    hasActiveBallAuthority: false, // Who currently simulates ball (switches on each hit)
     gameStarted: false,
     gameEnded: false,
     lastUpdate: 0
 };
 
-// Ball sync state (simplified): we now only sync ball on launch + bounces
-// No continuous mid-flight synchronization is required for classic Pong.
+// Ball sync state: authority switches between players on each paddle hit
+// Each player simulates ball locally when they have authority (after hitting it)
 
 // Paddle interpolation for smooth remote paddle (60fps rendering from 10fps network data)
 let remotePaddleTarget = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2;
@@ -410,6 +411,9 @@ function launchBall() {
         document.getElementById('shootBtn').style.display = 'none';
         document.getElementById('status-text').textContent = 'Game On!';
         
+        // Ball owner launches - they have authority initially
+        gameState.hasActiveBallAuthority = true;
+        
         // Initialize ball velocity - always shoot toward opponent (left)
         const angle = (Math.random() * Math.PI / 3) - Math.PI / 6;
         gameState.ball.vx = -Math.cos(angle) * BALL_SPEED_INITIAL; // Always negative (toward left)
@@ -443,17 +447,19 @@ function gameLoop() {
     // Update remote paddle with entity interpolation
     updateRemotePaddleInterpolation();
     
-    // Both players simulate ball movement using current velocity (pure local sim)
+    // Only player with ball authority simulates ball movement locally
     const ballHasVelocity = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
     
     if (ballHasVelocity) {
-        updateBall();
-
-        checkCollisions();
-        
-        // Only ball owner checks score (game logic authority)
-        if (gameState.isBallOwner) {
-            checkScore();
+        // Only simulate ball if we have authority
+        if (gameState.hasActiveBallAuthority) {
+            updateBall();
+            checkCollisions();
+            
+            // Only ball owner checks score (game logic authority)
+            if (gameState.isBallOwner) {
+                checkScore();
+            }
         }
     } else {
         // Ball hasn't been launched yet - keep it attached to paddle
@@ -654,6 +660,12 @@ function checkCollisions() {
         
         gameState.ball.x = rightPaddleX - BALL_SIZE / 2;
         
+        // Check if we're the one who hit it (right paddle = ball owner)
+        if (gameState.isBallOwner) {
+            // We hit it - we now have authority
+            gameState.hasActiveBallAuthority = true;
+        }
+        
         // Record collision event for lag compensation
         recordCollisionEvent();
         
@@ -674,6 +686,12 @@ function checkCollisions() {
         gameState.ball.vy = -relativeIntersectY * 0.15;
         
         gameState.ball.x = leftPaddleX + PADDLE_WIDTH + BALL_SIZE / 2;
+        
+        // Check if we're the one who hit it (left paddle = non-owner)
+        if (!gameState.isBallOwner) {
+            // We hit it - we now have authority
+            gameState.hasActiveBallAuthority = true;
+        }
         
         // Record collision event for lag compensation
         recordCollisionEvent();
@@ -720,6 +738,11 @@ function checkScore() {
 function resetBall() {
     // Position ball at serving paddle
     resetBallPosition();
+    
+    // Determine who serves (whoever got scored on serves)
+    // For now, alternate based on ball owner
+    const servingPlayer = gameState.isBallOwner;
+    gameState.hasActiveBallAuthority = servingPlayer;
     
     // Auto-launch ball from paddle with random angle toward opponent
     const angle = (Math.random() * Math.PI / 3) - Math.PI / 6;
@@ -1375,24 +1398,8 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
                         gameState.ball.vx = mirroredVx;
                         gameState.ball.vy = msg.b.vy;
                         
-                        // Setup interpolation state
-                        ballTarget = {
-                            x: mirroredX,
-                            y: msg.b.y,
-                            vx: mirroredVx,
-                            vy: msg.b.vy
-                        };
-                        
-                        // Setup dead reckoning
-                        ballLastKnownPosition = {
-                            x: gameState.ball.x,
-                            y: gameState.ball.y,
-                            vx: gameState.ball.vx,
-                            vy: gameState.ball.vy,
-                            timestamp: Date.now()
-                        };
-                        
-                        ballDeadReckoningActive = true;
+                        // Ball owner has authority when launching
+                        gameState.hasActiveBallAuthority = false;
                     }
                 }
                 break;
@@ -1441,20 +1448,23 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
                 break;
                 
             case "collision":
-                // Lag compensation: Remote player sent collision event with timestamp
-                // Process retroactively to verify collision timing and update ball state
+                // Remote player hit the ball - they now have authority
+                // Accept their ball state immediately
                 if (msg.t !== undefined) {
-                    const remoteBallState = {
-                        x: msg.x,
-                        y: msg.y,
-                        vx: msg.vx,
-                        vy: msg.vy
-                    };
-                    
                     // Convert from sender's coordinate system to ours (mirror X)
                     const mirroredX = CANVAS_WIDTH - msg.x;
                     const mirroredVx = -msg.vx;
                     
+                    // Snap to their state immediately (they have authority now)
+                    gameState.ball.x = mirroredX;
+                    gameState.ball.y = msg.y;
+                    gameState.ball.vx = mirroredVx;
+                    gameState.ball.vy = msg.vy;
+                    
+                    // Transfer authority to them
+                    gameState.hasActiveBallAuthority = false;
+                    
+                    // Still process retroactive collision for validation
                     processRetroactiveCollision(msg.t, msg.f, msg.seq, {
                         x: mirroredX,
                         y: msg.y,
