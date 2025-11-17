@@ -455,6 +455,17 @@ function gameLoop() {
         if (gameState.isBallOwner) {
             checkScore();
         }
+    } else {
+        // Ball hasn't been launched yet - keep it attached to paddle
+        if (gameState.isBallOwner) {
+            // Ball owner on right
+            gameState.ball.x = CANVAS_WIDTH - 20 - PADDLE_WIDTH - BALL_SIZE;
+            gameState.ball.y = gameState.localPaddle.y + PADDLE_HEIGHT / 2;
+        } else {
+            // Non-owner on left
+            gameState.ball.x = 20 + PADDLE_WIDTH + BALL_SIZE;
+            gameState.ball.y = gameState.localPaddle.y + PADDLE_HEIGHT / 2;
+        }
     }
     
     render();
