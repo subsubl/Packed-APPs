@@ -1483,18 +1483,18 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
          */
         switch(msg.a) {
             case "connect":
-                // Received connection request, reply back with our random number
+                // Received connection request from remote player
                 if (msg.rand !== undefined) {
                     remoteRandomNumber = msg.rand;
                 }
-                if (!connectionEstablished) {
-                    SpixiAppSdk.sendNetworkData(JSON.stringify({ a: "connect", sid: sessionId, rand: myRandomNumber }));
-                    lastDataSent = SpixiTools.getTimestamp();
-                    
-                    // Only establish connection if we have both random numbers
-                    if (remoteRandomNumber !== null) {
-                        handleConnectionEstablished();
-                    }
+                
+                // Always reply with our connection packet (fire and forget)
+                SpixiAppSdk.sendNetworkData(JSON.stringify({ a: "connect", sid: sessionId, rand: myRandomNumber }));
+                lastDataSent = SpixiTools.getTimestamp();
+                
+                // Only establish connection if we have both random numbers and not already connected
+                if (!connectionEstablished && remoteRandomNumber !== null) {
+                    handleConnectionEstablished();
                 }
                 break;
                 
