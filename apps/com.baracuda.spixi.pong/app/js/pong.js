@@ -125,7 +125,13 @@ const BALL_SPEED_INITIAL = 6.58;
 const BALL_SPEED_INCREMENT = 0.4;
 const MAX_LIVES = 3;
 const FRAME_RATE = 60; // Render at 60fps
-const NETWORK_SEND_RATE = 50; // Send network updates at 20fps (50ms)
+let NETWORK_SEND_RATE = 50; // Send network updates at 20fps (50ms) - adaptive
+
+// Adaptive network rate detection
+let networkRateTestActive = false;
+let networkRateTestStart = 0;
+let networkRateTestPackets = [];
+const NETWORK_RATE_TEST_DURATION = 3000; // 3 seconds
 
 // Sound system
 let audioContext;
@@ -351,6 +357,67 @@ let gameLoopInterval = null;
 let connectionRetryInterval = null;
 let disconnectCheckInterval = null;
 
+// Network rate test functions
+function startNetworkRateTest() {
+    networkRateTestActive = true;
+    networkRateTestStart = Date.now();
+    networkRateTestPackets = [];
+    
+    console.log('Starting network rate test...');
+}
+
+function recordPacketReceived() {
+    if (networkRateTestActive) {
+        networkRateTestPackets.push(Date.now());
+    }
+}
+
+function checkNetworkRateTest() {
+    if (!networkRateTestActive) return;
+    
+    const elapsed = Date.now() - networkRateTestStart;
+    if (elapsed >= NETWORK_RATE_TEST_DURATION) {
+        // Test complete - analyze results
+        networkRateTestActive = false;
+        
+        const packetsReceived = networkRateTestPackets.length;
+        const avgPacketRate = packetsReceived / (NETWORK_RATE_TEST_DURATION / 1000);
+        
+        console.log(`Network test: ${packetsReceived} packets in 3s (${avgPacketRate.toFixed(1)} pps)`);
+        
+        // Adjust network send rate based on measured packet rate
+        if (avgPacketRate >= 18) {
+            // Excellent connection - use 20 Hz (50ms)
+            NETWORK_SEND_RATE = 50;
+            connectionQuality = 'good';
+            console.log('Network quality: GOOD - Using 20 Hz update rate');
+        } else if (avgPacketRate >= 12) {
+            // Fair connection - use 15 Hz (67ms)
+            NETWORK_SEND_RATE = 67;
+            connectionQuality = 'fair';
+            console.log('Network quality: FAIR - Using 15 Hz update rate');
+        } else {
+            // Poor connection - use 10 Hz (100ms)
+            NETWORK_SEND_RATE = 100;
+            connectionQuality = 'poor';
+            console.log('Network quality: POOR - Using 10 Hz update rate');
+        }
+        
+        // Update status label
+        const statusLabel = document.querySelector('.status-label');
+        if (statusLabel) {
+            statusLabel.textContent = 'Connected';
+        }
+        
+        // Now transition to game screen
+        document.getElementById('waiting-screen').classList.replace('screen-active', 'screen-hidden');
+        document.getElementById('game-screen').classList.replace('screen-hidden', 'screen-active');
+        
+        // Auto-start after brief delay
+        autoStartTimer = setTimeout(() => startGame(), 500);
+    }
+}
+
 // Simplified connection handshake with retry mechanism
 function establishConnection() {
     // Send connection request with session ID and random number for ball owner determination
@@ -386,8 +453,11 @@ function handleConnectionEstablished() {
     // Update connection status
     const statusLabel = document.querySelector('.status-label');
     if (statusLabel) {
-        statusLabel.textContent = 'Connected';
+        statusLabel.textContent = 'Testing Connection...';
     }
+    
+    // Start network rate detection test
+    startNetworkRateTest();
     
     // Start regular ping
     if (!pingInterval) {
@@ -416,13 +486,6 @@ function handleConnectionEstablished() {
             }
         }, 10000);
     }
-    
-    // Transition to game screen
-    document.getElementById('waiting-screen').classList.replace('screen-active', 'screen-hidden');
-    document.getElementById('game-screen').classList.replace('screen-hidden', 'screen-active');
-    
-    // Auto-start after brief delay
-    autoStartTimer = setTimeout(() => startGame(), 500);
 }
 
 function initGame() {
@@ -1796,6 +1859,10 @@ SpixiAppSdk.onInit = function(sid, userAddresses) {
 SpixiAppSdk.onNetworkData = function(senderAddress, data) {
     playerLastSeen = SpixiTools.getTimestamp();
     
+    // Record packet for network rate test
+    recordPacketReceived();
+    checkNetworkRateTest();
+    
     // Track packet rate for connection quality
     packetReceiveCount++;
     const now = Date.now();
@@ -1804,13 +1871,15 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
         packetReceiveCount = 0;
         lastPacketRateCheck = now;
         
-        // Update connection quality
-        if (currentPacketRate >= 60) {
-            connectionQuality = 'good';
-        } else if (currentPacketRate >= 30) {
-            connectionQuality = 'fair';
-        } else {
-            connectionQuality = 'poor';
+        // Update connection quality (only if not in test phase)
+        if (!networkRateTestActive) {
+            if (currentPacketRate >= 60) {
+                connectionQuality = 'good';
+            } else if (currentPacketRate >= 30) {
+                connectionQuality = 'fair';
+            } else {
+                connectionQuality = 'poor';
+            }
         }
     }
     
