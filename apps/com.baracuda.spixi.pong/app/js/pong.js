@@ -302,6 +302,7 @@ let frameCounter = 0;
 let lastSentPaddleY = 0;
 let keysPressed = {};
 let touchControlActive = null;
+let wheelVelocity = 0;
 let connectionEstablished = false;
 
 // Frame counter sync for out-of-order packet detection
@@ -443,11 +444,14 @@ function setupControls() {
     
     // Scrolling wheel control
     const wheelHandle = document.getElementById('wheelHandle');
+    if (!wheelHandle) {
+        console.error('Wheel handle not found');
+        return;
+    }
     const wheelTrack = wheelHandle.parentElement;
     let isDragging = false;
     let wheelStartY = 0;
     let wheelCurrentY = 0;
-    let wheelVelocity = 0;
     let lastWheelY = 0;
     let wheelUpdateTime = Date.now();
     
@@ -1126,6 +1130,8 @@ function updateLivesDisplay() {
 }
 
 function render() {
+    if (!ctx || !canvas) return;
+    
     // Clear canvas
     ctx.fillStyle = '#1a202c';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);

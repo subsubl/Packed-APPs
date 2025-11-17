@@ -9,5 +9,5 @@ minUsers =
 maxUsers = 2
 protocols = com.ixilabs.spixi.mini-apps-test
 contentUrl = mini-apps-test.zip
-checksum = 0103e7100e3b8e4fa401d6d24846940a4c6e038f0c46c933a65b3c7592373892
+checksum = 4c7bec9c8c9509ccb591635cce4d0e1655773ca833acac03c4c9869ac4b93b77
 contentSize = 448852
