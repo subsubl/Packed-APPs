@@ -866,3 +866,24 @@ packed/            # Sample packaged apps showing final output format
 - ❌ Don't use `&&` in terminal commands (Windows PowerShell) - use `;` instead
 - ❌ Don't rely on external CDNs - bundle all dependencies for offline use
 - ❌ Don't use Node.js or build tools - Mini Apps are pure client-side HTML/CSS/JS
+
+## For Copilot / Automated Editors
+
+If you are an automated editing agent (Copilot) working on this repository, follow these additional rules to keep contributions safe and reversible:
+
+- ✅ Make minimal, focused edits and group related changes together with a clear commit message.
+- ✅ Always create a backup branch for any destructive or non-reversible edits. Example: `main-backup-before-<task>`.
+- ✅ Avoid adding persistent debug logs or UI-only diagnostics (remove them before commit) unless the change is gated behind a `debug` flag or `#ifdef`-style setting.
+- ✅ When changing runtime behavior (connection, network, login, security), prefer adding an opt-in feature flag or a toggle to minimize production impact.
+- ✅ When you update `appinfo.spixi` version numbers, also run the packer and include the generated pack (`packed/*.spixi`, `packed/*.zip`, `packed/*.png`) in the commit.
+- ✅ When adding or modifying network logic (handshake, rate-limiting, timeouts), include regression tests or a short QA checklist in the commit message detailing how to verify the changes.
+- ✅ If a change potentially affects other apps (SDK, tools), add a brief explanation in the commit and optionally run the packer for all `apps/` to avoid mismatched artifacts.
+- ✅ If asked to revert, use `git reset --hard <commit>` with a backup branch and re-pack the apps so `packed/` matches the new codebase.
+
+Follow these simple steps before committing any major change:
+1. Create a `main-backup-before-<task>` branch.
+2. Make minimal edits and run the packer for affected apps.
+3. Run quick local tests (two simulated Spixi clients for multi-user apps) if applicable.
+4. Commit with a clear message and push to the appropriate branch. If reverting `main`, create backups and force push only when necessary.
+
+This keeps the repo consistent, debuggable, and helps maintainers review and accept changes safely.
