@@ -303,23 +303,6 @@ let lastSentPaddleY = 0;
 let keysPressed = {};
 let touchControlActive = null;
 let wheelVelocity = 0;
-
-// UI logger for connection events: writes small messages to waiting screen
-function appendConnectionLog(msg, level = 'info') {
-    try {
-        const list = document.getElementById('connection-log-list');
-        if (!list) return;
-        const li = document.createElement('li');
-        li.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-        li.className = `log-${level}`;
-        list.appendChild(li);
-        // Keep log to last 12 entries
-        while (list.children.length > 12) list.removeChild(list.firstChild);
-        list.parentElement.scrollTop = list.parentElement.scrollHeight;
-    } catch (e) {
-        // nothing
-    }
-}
 let wheelHandle = null;
 let wheelTrack = null;
 let isDraggingWheel = false;
@@ -372,16 +355,16 @@ let disconnectCheckInterval = null;
 function startClockSync() {
     clockSyncActive = true;
     clockSyncSamples = [];
-    appendConnectionLog('Starting clock synchronization...', 'info');
+    // (debug UI log removed)
     
     // Only ball owner initiates clock sync to avoid deadlock
     if (!gameState.isBallOwner) {
         // non-owner waiting - replace console with UI log
-        appendConnectionLog('Waiting for clock sync requests (non-owner)...', 'info');
+        // (debug UI log removed)
         // Non-owner just waits and responds, then times out
         setTimeout(() => {
             if (clockSyncActive) {
-                appendConnectionLog('Clock sync timeout - proceeding with default offset', 'warn');
+                // (debug UI log removed)
                 finishClockSync();
             }
         }, 2000);
@@ -404,7 +387,7 @@ function startClockSync() {
     // Timeout after 2 seconds even if we don't get enough samples
     setTimeout(() => {
         if (clockSyncActive) {
-                    appendConnectionLog('Clock sync timeout - using available samples', 'warn');
+                    // (debug UI log removed)
             finishClockSync();
         }
     }, 2000);
@@ -440,7 +423,7 @@ function handleClockSyncResponse(t1, t2) {
     // Store sample with RTT for filtering
     clockSyncSamples.push({ offset, rtt });
     
-    appendConnectionLog(`Clock sync sample ${clockSyncSamples.length}: offset=${offset.toFixed(1)}ms, RTT=${rtt.toFixed(1)}ms`, 'info');
+    // (debug UI log removed)
 }
 
 function finishClockSync() {
@@ -457,7 +440,7 @@ function finishClockSync() {
     const goodSamples = clockSyncSamples.filter(s => s.rtt < 150);
     
     if (clockSyncSamples.length === 0) {
-        appendConnectionLog('No clock sync samples collected - using default offset 0', 'warn');
+        // (debug UI log removed)
         clockOffset = 0;
     } else if (goodSamples.length === 0) {
         console.warn('No good clock sync samples (all high RTT) - using default offset 0');
@@ -466,7 +449,7 @@ function finishClockSync() {
         // Use median offset from good samples for robustness
         const offsets = goodSamples.map(s => s.offset).sort((a, b) => a - b);
         clockOffset = offsets[Math.floor(offsets.length / 2)];
-        appendConnectionLog(`Clock synchronized: offset=${clockOffset.toFixed(1)}ms (${goodSamples.length}/${clockSyncSamples.length} samples)`, 'info');
+        // (debug UI log removed)
     }
     
     // Update status label
@@ -495,7 +478,7 @@ function startNetworkRateTest() {
     if (statusLabel) {
         statusLabel.textContent = 'Testing Network...';\n    }
     
-    appendConnectionLog('Starting network rate test...', 'info');
+    // (debug UI log removed)
 }
 
 function recordPacketReceived() {
@@ -515,24 +498,24 @@ function checkNetworkRateTest() {
         const packetsReceived = networkRateTestPackets.length;
         const avgPacketRate = packetsReceived / (NETWORK_RATE_TEST_DURATION / 1000);
         
-        appendConnectionLog(`Network test: ${packetsReceived} packets in 3s (${avgPacketRate.toFixed(1)} pps)`, 'info');
+        // (debug UI log removed)
         
         // Adjust network send rate based on measured packet rate
         if (avgPacketRate >= 18) {
             // Excellent connection - use 20 Hz (50ms)
             NETWORK_SEND_RATE = 50;
             connectionQuality = 'good';
-            appendConnectionLog('Network quality: GOOD - Using 20 Hz update rate', 'info');
+            // (debug UI log removed)
         } else if (avgPacketRate >= 12) {
             // Fair connection - use 15 Hz (67ms)
             NETWORK_SEND_RATE = 67;
             connectionQuality = 'fair';
-            appendConnectionLog('Network quality: FAIR - Using 15 Hz update rate', 'info');
+            // (debug UI log removed)
         } else {
             // Poor connection - use 10 Hz (100ms)
             NETWORK_SEND_RATE = 100;
             connectionQuality = 'poor';
-            appendConnectionLog('Network quality: POOR - Using 10 Hz update rate', 'warn');
+            // (debug UI log removed)
         }
         
         // Update status label
@@ -560,7 +543,7 @@ function establishConnection() {
     lastDataSent = SpixiTools.getTimestamp();
     connectionAttempts++;
     
-    appendConnectionLog(`Connection attempt ${connectionAttempts}...`, 'info');
+    // (debug UI log removed)
     
     // Keep sending connection packets every 500ms indefinitely until connected
     if (!connectionRetryInterval) {
@@ -573,7 +556,7 @@ function establishConnection() {
                 
                 // Update waiting screen with attempt count every 10 attempts
                 if (connectionAttempts % 10 === 0) {
-                    appendConnectionLog(`Still waiting for opponent... (${connectionAttempts} attempts)`, 'info');
+                    // (debug UI log removed)
                     const connectionMessage = document.querySelector('.connection-message');
                     if (connectionMessage) {
                         const elapsed = Math.floor(connectionAttempts * 0.5);
@@ -584,7 +567,7 @@ function establishConnection() {
                 // Connection established - stop retry attempts
                 clearInterval(connectionRetryInterval);
                 connectionRetryInterval = null;
-                appendConnectionLog(`Connected after ${connectionAttempts} attempts`, 'info');
+                // (debug UI log removed)
             }
         }, 500);
     }
@@ -918,19 +901,19 @@ function launchBall() {
             case "connect":
                 // Received connection request from remote player
                 // Always reply (fire-and-forget) to make handshake robust
-                appendConnectionLog(`Received connect request from ${senderAddress || 'unknown'}`, 'info');
+                // (debug UI log removed)
                 SpixiAppSdk.sendNetworkData(JSON.stringify({ a: "connect", sid: sessionId, rand: myRandomNumber }));
                 lastDataSent = SpixiTools.getTimestamp();
 
                 // Save the remote random number; original logic did not gate by sender address
                 if (msg.rand !== undefined) {
                     remoteRandomNumber = msg.rand;
-                    appendConnectionLog('Set remoteRandomNumber from opponent', 'info');
+                    // (debug UI log removed)
                 }
 
                 // Establish connection if we have both random numbers and not already connected
                 if (!connectionEstablished && remoteRandomNumber !== null) {
-                    appendConnectionLog(`Handshake complete - my:${myRandomNumber}, remote:${remoteRandomNumber}`, 'info');
+                    // (debug UI log removed)
                     handleConnectionEstablished();
                 }
                 break;
@@ -1990,7 +1973,7 @@ SpixiAppSdk.onInit = function(sid, userAddresses) {
     const addresses = userAddresses.split(",");
     remotePlayerAddress = addresses[0];
     // Show UI log for init
-    appendConnectionLog(`Session initialized. remoteAddress=${remotePlayerAddress}`, 'info');
+    // (debug UI log removed)
     
     // Local player is always on the right side
     
@@ -2112,32 +2095,17 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
         switch(msg.a) {
             case "connect":
                 // Received connection request from remote player
-                appendConnectionLog(`Connect request from ${senderAddress} (sid=${msg.sid})`, 'info');
                 // Always reply to allow late joiners to reply back
                 SpixiAppSdk.sendNetworkData(JSON.stringify({ a: "connect", sid: sessionId, rand: myRandomNumber }));
                 lastDataSent = SpixiTools.getTimestamp();
 
-                // Only consider this connect as our opponent if senderAddress matches expected remote
-                if (senderAddress && remotePlayerAddress) {
-                    const sAddr = senderAddress.toLowerCase();
-                    const rAddr = remotePlayerAddress.toLowerCase();
-                    if (sAddr !== rAddr && !sAddr.includes(rAddr) && !rAddr.includes(sAddr)) {
-                        appendConnectionLog(`Ignoring connect from ${senderAddress} - expecting ${remotePlayerAddress}`, 'warn');
-                        break;
-                    }
-                }
-                    console.log(`Ignoring connect from ${senderAddress} - expecting ${remotePlayerAddress}`);
-                    break;
-                }
-
+                // Record remote random number if provided
                 if (msg.rand !== undefined) {
                     remoteRandomNumber = msg.rand;
-                    appendConnectionLog('Set remoteRandomNumber from opponent', 'info');
                 }
 
                 // Establish connection if we have both random numbers and not already connected
-                if (!connectionEstablished && remoteRandomNumber !== null && myRandomNumber !== null) {
-                    appendConnectionLog(`Handshake complete - my:${myRandomNumber}, remote:${remoteRandomNumber}`, 'info');
+                if (!connectionEstablished && remoteRandomNumber !== null) {
                     handleConnectionEstablished();
                 }
                 break;
@@ -2173,7 +2141,6 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
                     
                     // Gently adjust clock offset (weighted average)
                     clockOffset = clockOffset * 0.8 + newOffset * 0.2;
-                    console.log(`Clock sync update: offset=${clockOffset.toFixed(1)}ms, RTT=${rtt.toFixed(1)}ms`);
                 }
                 break;
                 
@@ -2236,7 +2203,7 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
                 if (msg.f !== undefined) {
                     if (!validateFrameCounter(msg.f)) {
                         // Out-of-order or stale packet - ignore it
-                        console.debug(`Ignoring out-of-order packet with frame ${msg.f}`);
+                        // (debug log removed)
                         break;
                     }
                 }
@@ -2366,7 +2333,7 @@ SpixiAppSdk.onStorageData = function(key, value) {
         try {
             const savedState = JSON.parse(atob(value));
             // Ignore saved state - we always want to start a new game
-            console.log("Previous game state found but ignored - starting fresh");
+            // (debug info removed)
         } catch (e) {
             console.error("Error parsing saved state:", e);
         }

@@ -412,29 +412,7 @@ body::before {
 }
 
 /* Connection log */
-.connection-log {
-    margin-top: var(--spacing-lg);
-    width: 100%;
-    max-height: 120px;
-    overflow-y: auto;
-    background: rgba(0,0,0,0.03);
-    border-radius: var(--border-radius-md);
-    padding: var(--spacing-sm);
-    border: 1px solid rgba(0,0,0,0.05);
-}
-.connection-log ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-.connection-log li {
-    font-size: 0.8rem;
-    color: var(--text-tertiary);
-    margin-bottom: 6px;
-}
-.connection-log .log-error { color: var(--error); }
-.connection-log .log-info { color: var(--text-secondary); }
-.connection-log .log-warn { color: var(--accent); }
+/* connection log removed */
 
 /* Mobile adjustments */
 @media (max-width: 767px) {
