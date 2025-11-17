@@ -857,19 +857,24 @@ function updateBall() {
  * 3. Snapping velocity on large changes (indicates bounce/collision)
  */
 function updateBallInterpolation() {
-    // First, extrapolate position using current velocity (like local simulation)
-    // This gives us smooth 60fps motion between network updates
-    gameState.ball.x += gameState.ball.vx;
-    gameState.ball.y += gameState.ball.vy;
+    // Check if ball has velocity for extrapolation
+    const hasVelocity = Math.abs(gameState.ball.vx) > 0.01 || Math.abs(gameState.ball.vy) > 0.01;
     
-    // Handle wall bounces locally for smooth response
-    if (gameState.ball.y <= BALL_SIZE / 2 || gameState.ball.y >= CANVAS_HEIGHT - BALL_SIZE / 2) {
-        gameState.ball.vy = -gameState.ball.vy;
-        gameState.ball.y = Math.max(BALL_SIZE / 2, Math.min(CANVAS_HEIGHT - BALL_SIZE / 2, gameState.ball.y));
-        playWallBounceSound();
+    if (hasVelocity) {
+        // First, extrapolate position using current velocity (like local simulation)
+        // This gives us smooth 60fps motion between network updates
+        gameState.ball.x += gameState.ball.vx;
+        gameState.ball.y += gameState.ball.vy;
+        
+        // Handle wall bounces locally for smooth response
+        if (gameState.ball.y <= BALL_SIZE / 2 || gameState.ball.y >= CANVAS_HEIGHT - BALL_SIZE / 2) {
+            gameState.ball.vy = -gameState.ball.vy;
+            gameState.ball.y = Math.max(BALL_SIZE / 2, Math.min(CANVAS_HEIGHT - BALL_SIZE / 2, gameState.ball.y));
+            playWallBounceSound();
+        }
     }
     
-    // Now gently correct any drift toward authoritative position
+    // Always correct position toward target (works for both stationary and moving ball)
     const distanceToTarget = Math.sqrt(
         Math.pow(gameState.ball.x - ballTarget.x, 2) + 
         Math.pow(gameState.ball.y - ballTarget.y, 2)
@@ -881,15 +886,14 @@ function updateBallInterpolation() {
         gameState.ball.y = ballTarget.y;
         gameState.ball.vx = ballTarget.vx;
         gameState.ball.vy = ballTarget.vy;
-    } else if (distanceToTarget > 5) {
-        // Apply gentle position correction (10% per frame)
-        // This fixes drift without causing visible jumps
-        const correctionFactor = 0.1;
+    } else if (distanceToTarget > 2) {
+        // Apply gentle position correction - use faster correction when stationary
+        const correctionFactor = hasVelocity ? 0.1 : 0.3;
         gameState.ball.x += (ballTarget.x - gameState.ball.x) * correctionFactor;
         gameState.ball.y += (ballTarget.y - gameState.ball.y) * correctionFactor;
     }
     
-    // Check if velocity changed significantly (indicates bounce/collision)
+    // Always sync velocity toward target
     const velocityDiff = Math.sqrt(
         Math.pow(gameState.ball.vx - ballTarget.vx, 2) + 
         Math.pow(gameState.ball.vy - ballTarget.vy, 2)
@@ -899,7 +903,7 @@ function updateBallInterpolation() {
     if (velocityDiff > 1.0) {
         gameState.ball.vx = ballTarget.vx;
         gameState.ball.vy = ballTarget.vy;
-    } else if (velocityDiff > 0.1) {
+    } else if (velocityDiff > 0.01) {
         // Small velocity drift - correct gently
         gameState.ball.vx += (ballTarget.vx - gameState.ball.vx) * 0.15;
         gameState.ball.vy += (ballTarget.vy - gameState.ball.vy) * 0.15;
@@ -1106,6 +1110,19 @@ function resetBall() {
     const servingPlayer = gameState.isBallOwner;
     gameState.hasActiveBallAuthority = servingPlayer;
     
+    // Send ball reset position immediately so opponent knows where it is
+    const b = gameState.ball;
+    SpixiAppSdk.sendNetworkData(JSON.stringify({ 
+        a: "reset",
+        b: {
+            x: Math.round(CANVAS_WIDTH - b.x),
+            y: Math.round(b.y),
+            vx: 0,
+            vy: 0
+        }
+    }));
+    lastDataSent = SpixiTools.getTimestamp();
+    
     // Delay 1 second before auto-launching ball
     setTimeout(() => {
         // Auto-launch ball from paddle with random angle toward opponent
@@ -1120,15 +1137,15 @@ function resetBall() {
         }
         gameState.ball.vy = Math.sin(angle) * BALL_SPEED_INITIAL;
         
-        // Send ball state immediately
+        // Send ball state immediately with integer encoding
         const b = gameState.ball;
         SpixiAppSdk.sendNetworkData(JSON.stringify({ 
             a: "launch",
             b: {
                 x: Math.round(CANVAS_WIDTH - b.x),
                 y: Math.round(b.y),
-                vx: Number((-b.vx).toFixed(2)),
-                vy: Number(b.vy.toFixed(2))
+                vx: Math.round(-b.vx * 100),  // Integer velocity (*100)
+                vy: Math.round(b.vy * 100)
             }
         }));
         lastDataSent = SpixiTools.getTimestamp();
@@ -1229,14 +1246,11 @@ function render() {
     ctx.fillStyle = leftPaddleColor;
     ctx.fillRect(leftPaddleX, leftPaddleY, PADDLE_WIDTH, PADDLE_HEIGHT);
     
-    // Draw ball - only if it has velocity OR we have authority (waiting to serve)
-    const ballVisible = (Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1) || gameState.hasActiveBallAuthority;
-    if (ballVisible) {
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(gameState.ball.x, gameState.ball.y, BALL_SIZE / 2, 0, Math.PI * 2);
-        ctx.fill();
-    }
+    // Draw ball - always visible during gameplay for smooth experience
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(gameState.ball.x, gameState.ball.y, BALL_SIZE / 2, 0, Math.PI * 2);
+    ctx.fill();
 }
 
 function endGame(won) {
@@ -1891,6 +1905,27 @@ SpixiAppSdk.onNetworkData = function(senderAddress, data) {
                 
             case "ping":
                 // Connection keepalive
+                break;
+                
+            case "reset":
+                // Ball has been reset after scoring - position it for serving
+                if (msg.b) {
+                    const mirroredX = CANVAS_WIDTH - msg.b.x;
+                    
+                    // Set both target and actual position for stationary ball
+                    ballTarget.x = mirroredX;
+                    ballTarget.y = msg.b.y;
+                    ballTarget.vx = 0;
+                    ballTarget.vy = 0;
+                    
+                    gameState.ball.x = mirroredX;
+                    gameState.ball.y = msg.b.y;
+                    gameState.ball.vx = 0;
+                    gameState.ball.vy = 0;
+                    
+                    // We don't have authority - waiting for launch
+                    gameState.hasActiveBallAuthority = false;
+                }
                 break;
                 
             case "launch":
