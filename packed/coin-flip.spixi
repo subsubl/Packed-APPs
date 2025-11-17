@@ -1,6 +1,6 @@
 caVersion = 0
-id = com.ixilabs.spixi.coinflip
-publisher = IXI Labs
+id = com.baracuda.spixi.coinflip
+publisher = Baracuda
 name = Coin Flip
 version = 1.0.1
 capabilities = multiUser,transactionSigning
@@ -9,5 +9,5 @@ minUsers = 2
 maxUsers = 2
 protocols = 
 contentUrl = coin-flip.zip
-checksum = 03896617deca3dffaad85bf1be3d391d11dcc7e03acaeba1d2ba6b7a4e311790
-contentSize = 10443
+checksum = 116299b0a2afbc88dae3ce7eb89f3529c0cde04b8d6049c0427c820b7b818d48
+contentSize = 10440
