@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini Apps Test Environment</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            min-height: 100vh;
+            padding: 2rem;
+            color: #f1f5f9;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #818cf8, #f472b6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .info {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            color: #cbd5e1;
+        }
+
+        .apps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .app-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(51, 65, 85, 0.6));
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 200ms ease;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .app-card:hover {
+            background: linear-gradient(135deg, rgba(51, 65, 85, 0.9), rgba(71, 85, 105, 0.8));
+            border-color: rgba(99, 102, 241, 0.4);
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+            transform: translateY(-4px);
+        }
+
+        .app-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #6366f1, #ec4899);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .app-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+
+        .app-version {
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+
+        .app-id {
+            font-size: 0.75rem;
+            color: #64748b;
+            font-family: 'Monaco', 'Courier New', monospace;
+            word-break: break-all;
+        }
+
+        .app-description {
+            font-size: 0.875rem;
+            color: #cbd5e1;
+            flex-grow: 1;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 200ms ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            color: white;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 0 30px rgba(99, 102, 241, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: rgba(51, 65, 85, 0.8);
+            color: #cbd5e1;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(71, 85, 105, 0.9);
+            border-color: rgba(99, 102, 241, 0.4);
+        }
+
+        .status {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            color: #10b981;
+            font-weight: 500;
+        }
+
+        .instructions {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .instructions h2 {
+            margin-bottom: 1rem;
+            color: #f1f5f9;
+        }
+
+        .instructions ol {
+            margin-left: 1.5rem;
+            color: #cbd5e1;
+            line-height: 1.6;
+        }
+
+        .instructions li {
+            margin-bottom: 0.75rem;
+        }
+
+        .instructions code {
+            background: rgba(15, 23, 42, 0.5);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            color: #f472b6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 Spixi Mini Apps - Local Test Environment</h1>
+        
+        <div class="info">
+            <p>Test packed apps locally. Each app can be extracted and run in your browser.</p>
+            <p style="font-size: 0.875rem; margin-top: 0.5rem; color: #94a3b8;">Note: Full SDK functionality requires Spixi client. Some features will be limited in browser.</p>
+        </div>
+
+        <div class="status">
+            ✓ All apps available for local testing
+        </div>
+
+        <div class="apps-grid" id="appsGrid"></div>
+
+        <div class="instructions">
+            <h2>📋 How to Test Locally</h2>
+            <ol>
+                <li>Click <strong>View App</strong> to open the app's HTML file directly in your browser</li>
+                <li>Or click <strong>Extract & Run</strong> to unzip the app and extract files locally</li>
+                <li>For full multiplayer testing, use the Spixi client application</li>
+                <li>Check browser console (F12) for SDK debug messages</li>
+                <li>Many features will work in browser, but network communication requires Spixi context</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        // App manifest - loaded from packed directory
+        const apps = [
+            {
+                name: 'Pong',
+                version: '3.2.0',
+                id: 'com.baracuda.spixi.pong',
+                icon: '🏓',
+                description: 'Real-time multiplayer Pong game with 2-player support, lives system, and optimized network sync.',
+                url: '../apps/com.baracuda.spixi.pong/app/index.html',
+                zip: '../packed/pong.zip'
+            },
+            {
+                name: 'Tic Tac Toe',
+                version: '1.0.0',
+                id: 'com.ixilabs.spixi.tictactoe',
+                icon: '⭕',
+                description: 'Classic Tic Tac Toe game for 2 players with real-time multiplayer gameplay.',
+                url: '../apps/com.ixilabs.spixi.tictactoe/app/index.html',
+                zip: '../packed/tic-tac-toe.zip'
+            },
+            {
+                name: 'Whiteboard',
+                version: '1.0.0',
+                id: 'com.ixilabs.spixi.whiteboard',
+                icon: '🎨',
+                description: 'Real-time collaborative drawing app. Sketch and share with another user.',
+                url: '../apps/com.ixilabs.spixi.whiteboard/app/index.html',
+                zip: '../packed/whiteboard.zip'
+            },
+            {
+                name: 'Video Test',
+                version: '1.0.0',
+                id: 'com.ixilabs.spixi.video-test',
+                icon: '📹',
+                description: 'Test video capabilities and media device access.',
+                url: '../apps/com.ixilabs.spixi.video-test/app/index.html',
+                zip: '../packed/video-test.zip'
+            },
+            {
+                name: 'Gate Control',
+                version: '1.0.0',
+                id: 'com.ixilabs.spixi.gate-control',
+                icon: '🚪',
+                description: 'Smart gate/door control interface for IoT integration.',
+                url: '../apps/com.ixilabs.spixi.gate-control/app/index.html',
+                zip: '../packed/gate-control.zip'
+            },
+            {
+                name: 'Auth Test',
+                version: '1.0.0',
+                id: 'com.ixilabs.spixi.auth',
+                icon: '🔐',
+                description: 'Authentication and QR code scanning test app.',
+                url: '../apps/com.ixilabs.spixi.auth/app/index.html',
+                zip: '../packed/auth.zip'
+            },
+            {
+                name: 'Mini Apps Test',
+                version: '1.0.0',
+                id: 'com.ixilabs.spixi.mini-apps-test',
+                icon: '🧪',
+                description: 'SDK testing utility for storage, network, and lifecycle operations.',
+                url: '../apps/com.ixilabs.spixi.mini-apps-test/app/index.html',
+                zip: '../packed/mini-apps-test.zip'
+            },
+            {
+                name: 'AI Assistant',
+                version: '1.0.0',
+                id: 'com.mostnonameuser.spixi.aiassistant',
+                icon: '🤖',
+                description: 'AI-powered assistant with syntax highlighting and code execution.',
+                url: '../apps/com.mostnonameuser.spixi.aiassistant/app/index.html',
+                zip: '../packed/aiassistant.zip'
+            }
+        ];
+
+        function renderApps() {
+            const grid = document.getElementById('appsGrid');
+            grid.innerHTML = apps.map((app, index) => `
+                <div class="app-card">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div class="app-icon">${app.icon}</div>
+                        <div>
+                            <div class="app-name">${app.name}</div>
+                            <div class="app-version">v${app.version}</div>
+                        </div>
+                    </div>
+                    <div class="app-id">${app.id}</div>
+                    <div class="app-description">${app.description}</div>
+                    <div class="button-group">
+                        <a href="${app.url}" target="_blank" class="btn btn-primary">
+                            <span>🌐</span>
+                            <span>View App</span>
+                        </a>
+                        <button class="btn btn-secondary" onclick="downloadApp('${app.name}', '${app.zip}')">
+                            <span>💾</span>
+                            <span>Extract</span>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function downloadApp(name, zipPath) {
+            const link = document.createElement('a');
+            link.href = zipPath;
+            link.download = `${name.toLowerCase()}.zip`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Render apps on page load
+        document.addEventListener('DOMContentLoaded', renderApps);
+    </script>
+</body>
+</html>
