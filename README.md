@@ -1,99 +1,79 @@
 # Mini Apps Test Environment
 
 Local testing environment for Spixi Mini Apps. Run the packed apps directly in your browser without needing the full Spixi client.
+# Spixi Mini Apps — Test Environment
 
-## Quick Start
+Local test harness for Spixi Mini Apps. This repository provides a lightweight browser-hosted environment
+to open and debug mini apps without the full Spixi client. It includes a small Node.js server for serving
+the hub and a browser-side Dev Server simulator for WebSocket/MQTT behaviour.
 
-1. **Open the test environment:**
-   ```
-   Open index.html in your web browser
-   ```
+## Quick Start (Windows)
 
-2. **View an app:**
-   - Click the **View App** button to open any app directly
-   - The app will load in a new browser tab
-   - Some SDK features will be simulated, others will be limited
+- Install Node.js (LTS) if you don't have it. On Windows you can use `winget`:
 
-3. **Extract an app:**
-   - Click the **Extract** button to download the `.zip` file
-   - Extract it to inspect the app's structure and files
-
-## Apps Available
-
-- **🏓 Pong** - Real-time multiplayer game (2 players)
-- **⭕ Tic Tac Toe** - Classic turn-based game
-- **🎨 Whiteboard** - Collaborative drawing
-- **📹 Video Test** - Media device testing
-- **🚪 Gate Control** - IoT device control
-- **🔐 Auth Test** - Authentication & QR codes
-- **🧪 Mini Apps Test** - SDK functionality testing
-- **🤖 AI Assistant** - AI-powered tools
-
-## Features
-
-✅ One-click app launching  
-✅ Direct browser testing  
-✅ App extraction for inspection  
-✅ Responsive design  
-✅ Real-time status  
-
-## Limitations
-
-- **Network Communication**: Multi-player features require Spixi client context
-- **Storage API**: Limited to browser localStorage simulation
-- **Native Features**: Camera, microphone, biometrics require Spixi integration
-- **App-to-App Communication**: Not available in browser mode
-
-## Full Testing
-
-For complete app testing with networking and all SDK features:
-
-1. **Package the app:**
-   ```bash
-   node pack-app.js ./apps/com.baracuda.spixi.pong ./packed
-   ```
-
-2. **Deploy to Spixi:**
-   - Upload `.spixi`, `.zip`, and `.png` files to your hosting
-   - Add to Spixi app store or test via local deployment
-
-3. **Test with Spixi Client:**
-   - Download Spixi Messenger
-   - Add mini app from app store
-   - Create session with another user to test multiplayer features
-
-## Development
-
-To test locally during development:
-
-1. Edit app files directly in `apps/yourapp/app/`
-2. Open the app in your browser: `apps/yourapp/app/index.html`
-3. Use browser DevTools (F12) to debug
-4. Check Console tab for SDK debug messages
-
-## Browser Compatibility
-
-- **Chrome/Edge**: Full support
-- **Firefox**: Full support
-- **Safari**: Full support
-- **Mobile Browsers**: Full support (touch controls work)
-
-## Tips
-
-- **F12**: Open DevTools to see console messages and debug
-- **Network Tab**: Monitor mock SDK calls
-- **Mobile**: Test on actual device or use Chrome DevTools device emulation
-- **Storage**: Browser localStorage is used to simulate app storage
-
-## File Structure
-
+```powershell
+winget install --id OpenJS.NodeJS.LTS -e --accept-package-agreements --accept-source-agreements
 ```
-test-environment/
-├── index.html          # This test hub
-├── README.md           # Documentation
-└── [apps accessible via relative paths]
+
+- From the repo root:
+
+```powershell
+cd C:\Users\User\Spixi-Test-Enviroment
+npm install
+npm start
 ```
+
+- Open the main UI: `http://localhost:8000`
+- Dev server (to load a specific app): `http://localhost:8081/?app=<appId>` (example: `?app=com.baracuda.spixi.pong`)
+
+## Common Commands
+
+- Pack an app (creates packed output):
+
+```powershell
+node pack-app.js ./apps/com.baracuda.spixi.pong ./packed
+```
+
+- Run the server in foreground (shows logs):
+
+```powershell
+npm start
+```
+
+- View server logs (if started by helper script):
+
+```powershell
+Get-Content 'C:\Users\User\Spixi-Test-Enviroment\server_temp.log' -Wait -Tail 200
+```
+
+## Developer Tools
+
+- The hub (`index.html`) contains a Developer Tools section with controls to start the in-browser Dev Server
+  (simulated WebSocket/MQTT) and to configure ports used by the simulator.
+- Use the **Start** button in the Developer Tools section to enable the browser-side simulator.
+
+## Apps
+
+Apps are located under `apps/` — each app follows the structure `apps/<appId>/app/` with its `index.html`.
+
+Example app IDs in this repo:
+
+- `com.baracuda.spixi.pong`
+- `com.ixilabs.spixi.tictactoe`
+
+Open an app directly in the hub or use the dev server URL shown above.
+
+## Notes
+
+- This environment simulates some SDK features; full functionality (multiplayer networking, native
+  device access) requires the real Spixi client and live infrastructure.
+- The Node.js server is intentionally small — feel free to modify `server.js` to add features or
+  change routes.
+
+## Contributing
+
+If you'd like changes or improvements, open a PR or issue.
 
 ---
-
 Created for local testing of Spixi Mini Apps SDK
+- **Mobile Browsers**: Full support (touch controls work)
