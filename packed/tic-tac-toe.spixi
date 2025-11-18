@@ -1,0 +1,13 @@
+caVersion = 0
+id = com.ixilabs.spixi.tictactoe
+publisher = IXI Labs
+name = Tic-Tac-Toe
+version = 1.0.6
+capabilities = multiUser
+image = tic-tac-toe.png
+minUsers = 
+maxUsers = 2
+protocols = 
+contentUrl = tic-tac-toe.zip
+checksum = d00eceafcf79d097d09845bb0683a32517dd7001e87e840c3197b091189d6155
+contentSize = 460864

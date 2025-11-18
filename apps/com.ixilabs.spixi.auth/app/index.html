@@ -1,0 +1,36 @@
+﻿<!DOCTYPE html>
+<html>
+<!-- saved from url=(0016)http://localhost -->
+
+<head lang="en">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <link rel="stylesheet" type="text/css" href="css/styles.css" />
+    <script src="js/html5-qrcode.min.js"></script>
+    <script src="js/spixi-tools.js"></script>
+    <script src="js/spixi-app-sdk.js"></script>
+    <script src="js/main.js" defer></script>
+    <link rel="stylesheet" type="text/css" href="css/fa.all.min.css" />
+    <title>Spixi Authenticator</title>
+</head>
+<body onload="init();">
+<main class="spixi-auth">
+    <div class="note">
+        <i class="fas fa-circle-info"></i>
+        <span>Spixi Authenticator allows you to verify your identity and access supported services such as IXI Names.</span>
+    </div>
+    <div class="inputs-container">
+        <textarea id="serviceAction" placeholder="Enter URL..."></textarea>
+        <span class="invalid-input" id="errorMessage" style="display: none;">Please enter a valid URL.</span>
+        <div class="buttons-container">
+            <button id="authBtn" class="btn-primary"><i class="fas fa-lock"></i>Authenticate</button>
+            <span>or</span>
+            <button id="afix" class="btn-outline"><i class="fa fa-qrcode"></i>Scan</button>
+        </div>
+    </div>
+    <div id="reader"></div>
+</main>
+</body>
+</html>
