@@ -12,8 +12,16 @@ const GRAVITY = 0.5;
 const BULLET_SPEED = 8;
 const ENEMY_SPEED = 1.5;
 const ENEMY_SHOOT_CHANCE = 0.01;
+const POWERUP_SPAWN_CHANCE = 0.005;
 const FPS = 60;
 const NETWORK_UPDATE_RATE = 20; // Hz
+
+// Power-up Types
+const POWERUP_TYPES = {
+    HEALTH: 'health',
+    SPEED: 'speed',
+    RAPID_FIRE: 'rapid_fire'
+};
 
 // Game State
 const gameState = {
@@ -32,6 +40,7 @@ const gameState = {
     bullets: [],
     enemies: [],
     enemyBullets: [],
+    powerUps: [],
     
     keys: {},
     lastNetworkUpdate: 0,
@@ -155,6 +164,44 @@ class Player {
         // Gun
         ctx.fillStyle = '#666666';
         ctx.fillRect(this.x + this.width, this.y + this.height / 2 - 2, 8, 4);
+    }
+}
+
+// PowerUp class
+class PowerUp {
+    constructor(x, y, type) {
+        this.x = x;
+        this.y = y;
+        this.width = 20;
+        this.height = 20;
+        this.type = type;
+        this.collected = false;
+    }
+    
+    draw() {
+        ctx.fillStyle = this.getColor();
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        
+        // Draw icon based on type
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'center';
+        let icon = '?';
+        switch(this.type) {
+            case POWERUP_TYPES.HEALTH: icon = '♥'; break;
+            case POWERUP_TYPES.SPEED: icon = '⚡'; break;
+            case POWERUP_TYPES.RAPID_FIRE: icon = '🔫'; break;
+        }
+        ctx.fillText(icon, this.x + this.width/2, this.y + this.height/2 + 4);
+    }
+    
+    getColor() {
+        switch(this.type) {
+            case POWERUP_TYPES.HEALTH: return '#ff0000';
+            case POWERUP_TYPES.SPEED: return '#ffff00';
+            case POWERUP_TYPES.RAPID_FIRE: return '#00ff00';
+            default: return '#888888';
+        }
     }
 }
 
@@ -368,6 +415,11 @@ function updateEnemies() {
         spawnEnemy();
     }
     
+    // Spawn power-ups
+    if (Math.random() < POWERUP_SPAWN_CHANCE) {
+        spawnPowerUp();
+    }
+    
     // Check wave completion
     if (gameState.enemies.length === 0 && gameState.frameCount > 300) {
         nextWave();
@@ -382,6 +434,16 @@ function spawnEnemy() {
         height: 32,
         health: 1
     });
+}
+
+function spawnPowerUp() {
+    const types = Object.values(POWERUP_TYPES);
+    const randomType = types[Math.floor(Math.random() * types.length)];
+    gameState.powerUps.push(new PowerUp(
+        Math.random() * (CANVAS_WIDTH - 20),
+        Math.random() * (CANVAS_HEIGHT - 120) + 30,
+        randomType
+    ));
 }
 
 function spawnWave() {
@@ -451,6 +513,35 @@ function checkCollisions() {
             gameState.localPlayer.takeDamage(5);
         }
     });
+    
+    // Players vs power-ups
+    gameState.powerUps.forEach((powerUp, pIndex) => {
+        if (!powerUp.collected) {
+            if (checkPlayerCollision(gameState.localPlayer, powerUp)) {
+                applyPowerUp(gameState.localPlayer, powerUp.type);
+                powerUp.collected = true;
+                gameState.powerUps.splice(pIndex, 1);
+            } else if (gameState.remotePlayer && checkPlayerCollision(gameState.remotePlayer, powerUp)) {
+                // For remote, we could send message, but for simplicity, just remove
+                powerUp.collected = true;
+                gameState.powerUps.splice(pIndex, 1);
+            }
+        }
+    });
+}
+
+function applyPowerUp(player, type) {
+    switch(type) {
+        case POWERUP_TYPES.HEALTH:
+            player.health = Math.min(100, player.health + 25);
+            break;
+        case POWERUP_TYPES.SPEED:
+            // Temporary speed boost - not implemented yet
+            break;
+        case POWERUP_TYPES.RAPID_FIRE:
+            // Temporary rapid fire - not implemented yet
+            break;
+    }
 }
 
 function checkPlayerHit(player, bullet) {
@@ -517,6 +608,11 @@ function render() {
         ctx.fillRect(enemy.x + 6, enemy.y + 8, 6, 6);
         ctx.fillRect(enemy.x + 16, enemy.y + 8, 6, 6);
     });
+    
+    // Draw power-ups
+    gameState.powerUps.forEach(powerUp => {
+        powerUp.draw();
+    });
 }
 
 function updateHUD() {
@@ -578,6 +674,7 @@ function restartGame() {
     gameState.bullets = [];
     gameState.enemies = [];
     gameState.enemyBullets = [];
+    gameState.powerUps = [];
     gameState.wave = 1;
     gameState.frameCount = 0;
     

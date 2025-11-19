@@ -1,0 +1,13 @@
+caVersion = 0
+id = com.baracuda.spixi.contrarun2
+publisher = Baracuda
+name = Contra Run 2
+version = 1.0.0
+capabilities = multiUser
+image = contra-run-2.png
+minUsers = 1
+maxUsers = 2
+protocols = 
+contentUrl = contra-run-2.zip
+checksum = 3e36483302ee3a4a5ffb412c09b4bbf122e47960464194742ff3ec153a405c5e
+contentSize = 12136
