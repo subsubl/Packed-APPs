@@ -680,7 +680,8 @@ function setupControls() {
     if (shootBtn) {
         shootBtn.addEventListener('click', () => {
             if (!audioContext) initAudioContext();
-            if (gameState.isBallOwner && gameState.ball.vx === 0) {
+            // Use new manual serve logic
+            if (gameState.waitingForServe && gameState.isMyTurn) {
                 launchBall();
             }
         });
@@ -737,15 +738,14 @@ function startGame() {
         gameState.isBallOwner = myRandomNumber > remoteRandomNumber;
     }
 
-    // Update UI
+    // Update UI - handled by resetBall
     document.getElementById('startBtn').style.display = 'none';
     const shootBtn = document.getElementById('shootBtn');
     shootBtn.style.display = 'inline-flex';
-    shootBtn.disabled = !gameState.isBallOwner;
-    document.getElementById('status-text').textContent = gameState.isBallOwner ? 'Launch Ball!' : 'Opponent Serves...';
 
-    // Reset game state
-    resetBallPosition();
+    // Reset game state and set up initial serve
+    // Default server is the ball owner (right side)
+    resetBall(gameState.isBallOwner ? 'right' : 'left');
 
     // Initialize client-side prediction state
     predictedPaddleY = gameState.localPaddle.y;
