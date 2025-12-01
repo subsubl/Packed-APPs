@@ -1840,9 +1840,9 @@ function sendGameState() {
             lastSentLastAck = lastAcknowledgedSequence;
         }
 
-        // Ball state: Hybrid approach (event-based + low-rate periodic)
+        // Ball state: Hybrid approach (event-based + adaptive-rate periodic)
         // - Events (launch/bounce/hit) for instant reactions
-        // - Periodic updates at 5pps (200ms) to prevent client drift
+        // - Adaptive periodic updates: 60pps (good connection) or 25pps (degraded connection)
         const ballActive = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
         if (gameState.hasActiveBallAuthority && ballActive) {
             const b = gameState.ball;
@@ -1860,9 +1860,13 @@ function sendGameState() {
                 Math.abs(lastSentBallState.vx - newBallState.vx) > 5 || // > 0.05 float diff
                 Math.abs(lastSentBallState.vy - newBallState.vy) > 5;
 
-            // Send ball at low rate (5pps / 200ms) OR on velocity change (event)
+            // Adaptive ball update rate based on connection quality
+            // Good connection: 60pps (~16ms) | Poor/Fair connection: 25pps (40ms)
+            const ballUpdateInterval = (connectionQuality === 'good') ? 16 : 40;
+
+            // Send ball at adaptive rate OR on velocity change (event)
             const timeSinceLastBallUpdate = currentTime - (lastBallUpdateTime || 0);
-            if (timeSinceLastBallUpdate >= 200 || velocityChanged) {
+            if (timeSinceLastBallUpdate >= ballUpdateInterval || velocityChanged) {
                 lastSentBallState = { ...newBallState };
                 state.b = newBallState;
                 lastBallUpdateTime = currentTime;
