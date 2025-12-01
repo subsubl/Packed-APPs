@@ -727,85 +727,93 @@ function launchBall() {
 }
 
 function gameLoop(timestamp) {
-    if (!gameState.gameStarted || gameState.gameEnded) {
-        gameLoopId = null;
-        return;
-    }
+    try {
+        if (!gameState.gameStarted || gameState.gameEnded) {
+            gameLoopId = null;
+            return;
+        }
 
-    // Schedule next frame immediately
-    gameLoopId = requestAnimationFrame(gameLoop);
+        // Schedule next frame immediately
+        gameLoopId = requestAnimationFrame(gameLoop);
 
-    // Calculate frame delta for performance monitoring
-    if (!lastFrameTime) lastFrameTime = timestamp;
-    const deltaTime = timestamp - lastFrameTime;
-    lastFrameTime = timestamp;
+        // Calculate frame delta for performance monitoring
+        if (!lastFrameTime) lastFrameTime = timestamp;
+        const deltaTime = timestamp - lastFrameTime;
+        lastFrameTime = timestamp;
 
-    // Monitor performance (adaptive network rate)
-    if (deltaTime > 0) {
-        frameTimeAccumulator += deltaTime;
-        framesMeasured++;
+        // Monitor performance (adaptive network rate)
+        if (deltaTime > 0) {
+            frameTimeAccumulator += deltaTime;
+            framesMeasured++;
 
-        if (framesMeasured >= 60) {
-            const avgFrameTime = frameTimeAccumulator / framesMeasured;
-            // If dropping frames (avg > 20ms, i.e., < 50fps), throttle network
-            if (avgFrameTime > 20) {
-                currentNetworkRate = NETWORK_RATE_THROTTLED;
+            if (framesMeasured >= 60) {
+                const avgFrameTime = frameTimeAccumulator / framesMeasured;
+                // If dropping frames (avg > 20ms, i.e., < 50fps), throttle network
+                if (avgFrameTime > 20) {
+                    currentNetworkRate = NETWORK_RATE_THROTTLED;
+                } else {
+                    // Otherwise use active/idle logic
+                    const ballActive = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
+                    currentNetworkRate = ballActive ? NETWORK_RATE_ACTIVE : NETWORK_RATE_IDLE;
+                }
+                frameTimeAccumulator = 0;
+                framesMeasured = 0;
+            }
+        }
+
+        frameCounter++;
+        updatePaddle();
+
+        // Update remote paddle with entity interpolation
+        updateRemotePaddleInterpolation();
+
+        // Only player with ball authority simulates ball movement locally
+        const ballHasVelocity = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
+
+        if (ballHasVelocity) {
+            // Simulate ball if we have authority, otherwise interpolate toward target
+            if (gameState.hasActiveBallAuthority) {
+                updateBall();
+                checkCollisions();
+
+                // Only ball owner checks score (game logic authority)
+                if (gameState.isBallOwner) {
+                    checkScore();
+                }
             } else {
-                // Otherwise use active/idle logic
-                const ballActive = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
-                currentNetworkRate = ballActive ? NETWORK_RATE_ACTIVE : NETWORK_RATE_IDLE;
+                // We don't have authority - interpolate toward target for smooth motion
+                updateBallInterpolation();
             }
-            frameTimeAccumulator = 0;
-            framesMeasured = 0;
-        }
-    }
-
-    frameCounter++;
-    updatePaddle();
-
-    // Update remote paddle with entity interpolation
-    updateRemotePaddleInterpolation();
-
-    // Only player with ball authority simulates ball movement locally
-    const ballHasVelocity = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
-
-    if (ballHasVelocity) {
-        // Simulate ball if we have authority, otherwise interpolate toward target
-        if (gameState.hasActiveBallAuthority) {
-            updateBall();
-            checkCollisions();
-
-            // Only ball owner checks score (game logic authority)
+        } else if (gameState.hasActiveBallAuthority) {
+            // Ball hasn't been launched yet - only show on serving player's side
+            // Keep it attached to paddle
             if (gameState.isBallOwner) {
-                checkScore();
+                // Ball owner on right
+                gameState.ball.x = CANVAS_WIDTH - 20 - PADDLE_WIDTH - BALL_SIZE;
+                gameState.ball.y = gameState.localPaddle.y + PADDLE_HEIGHT / 2;
+            } else {
+                // Non-owner on left
+                gameState.ball.x = 20 + PADDLE_WIDTH + BALL_SIZE;
+                gameState.ball.y = gameState.localPaddle.y + PADDLE_HEIGHT / 2;
             }
-        } else {
-            // We don't have authority - interpolate toward target for smooth motion
-            updateBallInterpolation();
         }
-    } else if (gameState.hasActiveBallAuthority) {
-        // Ball hasn't been launched yet - only show on serving player's side
-        // Keep it attached to paddle
-        if (gameState.isBallOwner) {
-            // Ball owner on right
-            gameState.ball.x = CANVAS_WIDTH - 20 - PADDLE_WIDTH - BALL_SIZE;
-            gameState.ball.y = gameState.localPaddle.y + PADDLE_HEIGHT / 2;
-        } else {
-            // Non-owner on left
-            gameState.ball.x = 20 + PADDLE_WIDTH + BALL_SIZE;
-            gameState.ball.y = gameState.localPaddle.y + PADDLE_HEIGHT / 2;
+
+        render();
+
+        // Send unified game state at dynamic rate
+        const currentTime = Date.now();
+        const timeSinceLastSync = currentTime - lastSyncTime;
+
+        if (timeSinceLastSync >= currentNetworkRate) {
+            sendGameState();
+            lastSyncTime = currentTime;
         }
-    }
-
-    render();
-
-    // Send unified game state at dynamic rate
-    const currentTime = Date.now();
-    const timeSinceLastSync = currentTime - lastSyncTime;
-
-    if (timeSinceLastSync >= currentNetworkRate) {
-        sendGameState();
-        lastSyncTime = currentTime;
+    } catch (e) {
+        console.error("Error in game loop:", e);
+        // Don't stop the loop, try to recover next frame
+        if (!gameLoopId && !gameState.gameEnded) {
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
     }
 }
 
@@ -1182,8 +1190,8 @@ function resetBall() {
         b: {
             x: Math.round(CANVAS_WIDTH - b.x),
             y: Math.round(b.y),
-            vx: Number((-b.vx).toFixed(2)),
-            vy: Number(b.vy.toFixed(2))
+            vx: Math.round(-b.vx * 100),   // Integer velocity (*100)
+            vy: Math.round(b.vy * 100)
         }
     }));
     lastDataSent = SpixiTools.getTimestamp();
@@ -1284,7 +1292,8 @@ function render() {
     ctx.fillRect(leftPaddleX, leftPaddleY, PADDLE_WIDTH, PADDLE_HEIGHT);
 
     // Draw ball - only if it has velocity OR we have authority (waiting to serve)
-    const ballVisible = (Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1) || gameState.hasActiveBallAuthority;
+    // Lower threshold to 0.01 to ensure ball is visible even at very low speeds
+    const ballVisible = (Math.abs(gameState.ball.vx) > 0.01 || Math.abs(gameState.ball.vy) > 0.01) || gameState.hasActiveBallAuthority;
     if (ballVisible) {
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
@@ -1586,95 +1595,99 @@ function sendBallStateWithCollision() {
  * RENDER RATE: 60fps - Interpolation bridges the gap between sends
  */
 function sendGameState() {
-    if (!gameState.gameStarted || gameState.gameEnded) {
-        return; // Don't send if game not active
-    }
-
-    const currentTime = SpixiTools.getTimestamp();
-    lastDataSent = currentTime;
-
-    // Use predicted paddle position (client-side prediction)
-    const paddleY = Math.round(predictedPaddleY);
-
-    // Check if paddle position changed since last send
-    const paddleChanged = paddleY !== lastSentPaddleY;
-
-    // If paddle position changed, assign new sequence number and store in buffer
-    if (paddleChanged) {
-        inputSequence++;
-        const input = {
-            seq: inputSequence,
-            paddleY: paddleY,
-            timestamp: currentTime
-        };
-        pendingInputs.push(input);
-        lastSentPaddleY = paddleY;
-    }
-
-    // Build unified state packet - delta updates (only include fields that changed)
-    // Reuse object to reduce GC
-    const state = reusableStatePacket;
-    // Clear previous properties (except 'a')
-    for (const key in state) {
-        if (key !== 'a') delete state[key];
-    }
-
-    // Include frame counter only if changed (frame counter should always increment)
-    if (frameCounter !== lastSentFrameCounter) {
-        state.f = frameCounter;
-        lastSentFrameCounter = frameCounter;
-    }
-
-    // Include paddle only if changed
-    if (paddleChanged) {
-        state.p = paddleY;
-    }
-
-    // Include sequence number only if changed
-    if (inputSequence !== lastSentSeq) {
-        state.seq = inputSequence;
-        lastSentSeq = inputSequence;
-    }
-
-    // Include lastAck only if changed
-    if (lastAcknowledgedSequence !== lastSentLastAck) {
-        state.lastAck = lastAcknowledgedSequence;
-        lastSentLastAck = lastAcknowledgedSequence;
-    }
-
-    // Include ball state if we have authority and ball is moving
-    const ballActive = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
-    if (gameState.hasActiveBallAuthority && ballActive) {
-        const b = gameState.ball;
-
-        // Use reusable ball state object
-        reusableBallState.x = Math.round(CANVAS_WIDTH - b.x); // Mirror X
-        reusableBallState.y = Math.round(b.y);
-        reusableBallState.vx = Math.round(-b.vx * 100); // Integer velocity
-        reusableBallState.vy = Math.round(b.vy * 100);
-
-        const newBallState = reusableBallState;
-
-        // Only include if changed significantly (position differs by >2px or velocity changed)
-        // This is a bandwidth optimization, but much less aggressive than "event-only"
-        const ballStateChanged = !lastSentBallState ||
-            Math.abs(lastSentBallState.x - newBallState.x) > 2 ||
-            Math.abs(lastSentBallState.y - newBallState.y) > 2 ||
-            lastSentBallState.vx !== newBallState.vx ||
-            lastSentBallState.vy !== newBallState.vy;
-
-        if (ballStateChanged) {
-            // Need to clone for lastSentBallState since we reuse the object
-            lastSentBallState = { ...newBallState };
-            state.b = newBallState;
+    try {
+        if (!gameState.gameStarted || gameState.gameEnded) {
+            return; // Don't send if game not active
         }
-    } else if (!ballActive) {
-        // Ball stopped - clear cached state
-        lastSentBallState = null;
-    }
 
-    // Always send state packet (at minimum contains action type)
-    SpixiAppSdk.sendNetworkData(JSON.stringify(state));
+        const currentTime = SpixiTools.getTimestamp();
+        lastDataSent = currentTime;
+
+        // Use predicted paddle position (client-side prediction)
+        const paddleY = Math.round(predictedPaddleY);
+
+        // Check if paddle position changed since last send
+        const paddleChanged = paddleY !== lastSentPaddleY;
+
+        // If paddle position changed, assign new sequence number and store in buffer
+        if (paddleChanged) {
+            inputSequence++;
+            const input = {
+                seq: inputSequence,
+                paddleY: paddleY,
+                timestamp: currentTime
+            };
+            pendingInputs.push(input);
+            lastSentPaddleY = paddleY;
+        }
+
+        // Build unified state packet - delta updates (only include fields that changed)
+        // Reuse object to reduce GC
+        const state = reusableStatePacket;
+        // Clear previous properties (except 'a')
+        for (const key in state) {
+            if (key !== 'a') delete state[key];
+        }
+
+        // Include frame counter only if changed (frame counter should always increment)
+        if (frameCounter !== lastSentFrameCounter) {
+            state.f = frameCounter;
+            lastSentFrameCounter = frameCounter;
+        }
+
+        // Include paddle only if changed
+        if (paddleChanged) {
+            state.p = paddleY;
+        }
+
+        // Include sequence number only if changed
+        if (inputSequence !== lastSentSeq) {
+            state.seq = inputSequence;
+            lastSentSeq = inputSequence;
+        }
+
+        // Include lastAck only if changed
+        if (lastAcknowledgedSequence !== lastSentLastAck) {
+            state.lastAck = lastAcknowledgedSequence;
+            lastSentLastAck = lastAcknowledgedSequence;
+        }
+
+        // Include ball state if we have authority and ball is moving
+        const ballActive = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
+        if (gameState.hasActiveBallAuthority && ballActive) {
+            const b = gameState.ball;
+
+            // Use reusable ball state object
+            reusableBallState.x = Math.round(CANVAS_WIDTH - b.x); // Mirror X
+            reusableBallState.y = Math.round(b.y);
+            reusableBallState.vx = Math.round(-b.vx * 100); // Integer velocity
+            reusableBallState.vy = Math.round(b.vy * 100);
+
+            const newBallState = reusableBallState;
+
+            // Only include if changed significantly (position differs by >2px or velocity changed)
+            // This is a bandwidth optimization, but much less aggressive than "event-only"
+            const ballStateChanged = !lastSentBallState ||
+                Math.abs(lastSentBallState.x - newBallState.x) > 2 ||
+                Math.abs(lastSentBallState.y - newBallState.y) > 2 ||
+                lastSentBallState.vx !== newBallState.vx ||
+                lastSentBallState.vy !== newBallState.vy;
+
+            if (ballStateChanged) {
+                // Need to clone for lastSentBallState since we reuse the object
+                lastSentBallState = { ...newBallState };
+                state.b = newBallState;
+            }
+        } else if (!ballActive) {
+            // Ball stopped - clear cached state
+            lastSentBallState = null;
+        }
+
+        // Always send state packet (at minimum contains action type)
+        SpixiAppSdk.sendNetworkData(JSON.stringify(state));
+    } catch (e) {
+        console.error("Error sending game state:", e);
+    }
 }
 
 /**
