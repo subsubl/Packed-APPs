@@ -1387,9 +1387,11 @@ function render() {
         ctx.fillStyle = leftPaddleColor;
         ctx.fillRect(leftPaddleX, leftPaddleY, PADDLE_WIDTH, PADDLE_HEIGHT);
 
-        // Draw ball - only if it has velocity OR we have authority OR waiting for serve
+        // Draw ball - only if it has velocity OR we have authority OR (waiting for serve AND we own ball)
         // Lower threshold to 0.01 to ensure ball is visible even at very low speeds
-        const ballVisible = (Math.abs(gameState.ball.vx) > 0.01 || Math.abs(gameState.ball.vy) > 0.01) || gameState.hasActiveBallAuthority || gameState.waitingForServe;
+        const ballVisible = (Math.abs(gameState.ball.vx) > 0.01 || Math.abs(gameState.ball.vy) > 0.01) ||
+            gameState.hasActiveBallAuthority ||
+            (gameState.waitingForServe && gameState.isBallOwner);
         if (ballVisible) {
             ctx.fillStyle = '#ffffff';
             ctx.beginPath();
@@ -1838,16 +1840,37 @@ function sendGameState() {
             lastSentLastAck = lastAcknowledgedSequence;
         }
 
-        // Ball state is now event-based (launch/collision/score)
-        // We do NOT send periodic ball updates to avoid stuttering
-        // Client-side prediction handles the rest
-        /*
-        // Include ball state if we have authority and ball is moving
+        // Ball state: Hybrid approach (event-based + low-rate periodic)
+        // - Events (launch/bounce/hit) for instant reactions
+        // - Periodic updates at 5pps (200ms) to prevent client drift
         const ballActive = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
         if (gameState.hasActiveBallAuthority && ballActive) {
-            // ... (removed)
+            const b = gameState.ball;
+
+            // Use reusable ball state object
+            reusableBallState.x = Math.round(CANVAS_WIDTH - b.x); // Mirror X
+            reusableBallState.y = Math.round(b.y);
+            reusableBallState.vx = Math.round(-b.vx * 100); // Integer velocity
+            reusableBallState.vy = Math.round(b.vy * 100);
+
+            const newBallState = reusableBallState;
+
+            // Check for significant velocity change (bounce/hit) to force update
+            const velocityChanged = !lastSentBallState ||
+                Math.abs(lastSentBallState.vx - newBallState.vx) > 5 || // > 0.05 float diff
+                Math.abs(lastSentBallState.vy - newBallState.vy) > 5;
+
+            // Send ball at low rate (5pps / 200ms) OR on velocity change (event)
+            const timeSinceLastBallUpdate = currentTime - (lastBallUpdateTime || 0);
+            if (timeSinceLastBallUpdate >= 200 || velocityChanged) {
+                lastSentBallState = { ...newBallState };
+                state.b = newBallState;
+                lastBallUpdateTime = currentTime;
+            }
+        } else if (!ballActive) {
+            // Ball stopped - clear cached state
+            lastSentBallState = null;
         }
-        */
 
         // Always send state packet (at minimum contains action type)
         SpixiAppSdk.sendNetworkData(JSON.stringify(state));
