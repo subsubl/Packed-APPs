@@ -1339,6 +1339,70 @@ function performFullReset() {
     gameState.remotePaddle.y = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2;
     gameState.remotePaddle.lives = MAX_LIVES;
     gameState.gameStarted = false;
+    gameState.gameEnded = false;
+    gameState.isBallOwner = false;
+    gameState.hasActiveBallAuthority = false;
+
+    // Reset ball
+    gameState.ball.x = CANVAS_WIDTH / 2;
+    gameState.ball.y = CANVAS_HEIGHT / 2;
+    gameState.ball.vx = 0;
+    gameState.ball.vy = 0;
+
+    // Reset prediction state
+    predictedPaddleY = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2;
+    lastAuthorativePaddleY = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2;
+    lastAcknowledgedSequence = 0;
+    inputSequence = 0;
+    pendingInputs = [];
+
+    // Reset frame counters
+    frameCounter = 0;
+    remoteFrameCounter = 0;
+    frameCounterMismatchCount = 0;
+
+    // Reset networking state
+    lastDataSent = 0;
+    lastSyncTime = 0;
+    lastSentFrameCounter = 0;
+    lastSentSeq = 0;
+    lastSentLastAck = 0;
+    lastSentPaddleY = gameState.localPaddle.y;
+    lastSentBallState = null;
+    lastBallSyncTime = 0;
+
+    // Reset wheel position to center
+    if (wheelHandle) {
+        wheelHandle.style.top = '50%';
+    }
+
+    updateLivesDisplay();
+
+    // Transition to waiting screen
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const gameScreen = document.getElementById('game-screen');
+    const waitingScreen = document.getElementById('waiting-screen');
+
+    // Robust screen transition
+    gameOverScreen.classList.remove('screen-active');
+    gameOverScreen.classList.add('screen-hidden');
+
+    gameScreen.classList.remove('screen-active');
+    gameScreen.classList.add('screen-hidden');
+
+    waitingScreen.classList.remove('screen-hidden');
+    waitingScreen.classList.add('screen-active');
+
+    const waitingText = document.querySelector('.waiting-text');
+    if (waitingText) {
+        waitingText.textContent = 'Reconnecting to opponent...';
+    }
+
+    // Re-establish connection
+    setTimeout(() => establishConnection(), 100);
+}
+
+function exitGame() {
     // Notify opponent about exit
     try {
         SpixiAppSdk.sendNetworkData(JSON.stringify({ a: "exit" }));
