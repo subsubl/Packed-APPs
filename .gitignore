@@ -6,9 +6,6 @@ node_modules/
 server*.log
 npm-debug.log*
 
-# Packed output
-packed/
-
 # Temporary files
 .DS_Store
 thumbs.db

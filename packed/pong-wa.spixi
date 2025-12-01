@@ -1,0 +1,13 @@
+caVersion = 0
+id = com.baracuda.spixi.pongWA
+publisher = Baracuda
+name = Pong WA
+version = 1.0.0
+capabilities = multiUser
+image = pong-wa.png
+minUsers = 
+maxUsers = 2
+protocols = 
+contentUrl = pong-wa.zip
+checksum = cc5a39776e1431ebf7ae4f8998bb95d50f5bd24643e473230dc3549b5517a7d3
+contentSize = 9403023
