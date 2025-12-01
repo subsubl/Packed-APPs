@@ -741,45 +741,32 @@ function startGame() {
 }
 
 function resetBallPosition() {
-    // Position ball at the serving paddle
-    // serverSide is 'left' or 'right'
-
-    // If serverSide is not set (initial game), default to ball owner (right)
-    const side = gameState.serverSide || (gameState.isBallOwner ? 'right' : 'left');
-
-    if (side === 'right') {
-        // Right paddle
+    // Position ball at the serving paddle (ball owner is always on right)
+    if (gameState.isBallOwner) {
+        // Right paddle - ball owner
         gameState.ball.x = CANVAS_WIDTH - 20 - PADDLE_WIDTH - BALL_SIZE;
-        // If I am right (owner), use my paddle Y. If I am left, use remote paddle Y.
-        const paddleY = gameState.isBallOwner ? gameState.localPaddle.y : gameState.remotePaddle.y;
-        gameState.ball.y = paddleY + PADDLE_HEIGHT / 2;
+        gameState.ball.y = gameState.localPaddle.y + PADDLE_HEIGHT / 2;
     } else {
-        // Left paddle
+        // Left paddle - non-owner
         gameState.ball.x = 20 + PADDLE_WIDTH + BALL_SIZE;
-        // If I am left (non-owner), use my paddle Y. If I am right, use remote paddle Y.
-        const paddleY = !gameState.isBallOwner ? gameState.localPaddle.y : gameState.remotePaddle.y;
-        gameState.ball.y = paddleY + PADDLE_HEIGHT / 2;
+        gameState.ball.y = gameState.localPaddle.y + PADDLE_HEIGHT / 2;
     }
     gameState.ball.vx = 0;
     gameState.ball.vy = 0;
 }
 
 function launchBall() {
-    if (gameState.waitingForServe && gameState.isMyTurn) {
+    if (gameState.ball.vx === 0 && gameState.isBallOwner) {
         document.getElementById('shootBtn').style.display = 'none';
         document.getElementById('status-text').textContent = 'Game On!';
         playLaunchSound();
 
-        gameState.waitingForServe = false;
+        // Ball owner launches - they have authority initially
         gameState.hasActiveBallAuthority = true;
 
-        // Initialize ball velocity - shoot toward opponent
+        // Initialize ball velocity - always shoot toward opponent (left)
         const angle = (Math.random() * Math.PI / 3) - Math.PI / 6;
-
-        // If I am right (owner), shoot left (negative VX). If I am left, shoot right (positive VX).
-        const direction = gameState.isBallOwner ? -1 : 1;
-
-        gameState.ball.vx = direction * Math.cos(angle) * BALL_SPEED_INITIAL;
+        gameState.ball.vx = -Math.cos(angle) * BALL_SPEED_INITIAL; // Always negative (toward left)
         gameState.ball.vy = Math.sin(angle) * BALL_SPEED_INITIAL;
 
         // Notify other player with ball velocity included
@@ -867,20 +854,17 @@ function gameLoop(timestamp) {
                 // We don't have authority - interpolate toward target for smooth motion
                 updateBallInterpolation();
             }
-        } else if (gameState.waitingForServe) {
-            // Ball waiting for serve - keep attached to serving paddle
-            if (gameState.serverSide === 'right') {
-                // Right paddle serving
+        } else if (gameState.hasActiveBallAuthority) {
+            // Ball hasn't been launched yet - only show on serving player's side
+            // Keep it attached to paddle
+            if (gameState.isBallOwner) {
+                // Ball owner on right
                 gameState.ball.x = CANVAS_WIDTH - 20 - PADDLE_WIDTH - BALL_SIZE;
-                // If I am right (owner), use my paddle. If I am left, use remote paddle.
-                const paddleY = gameState.isBallOwner ? gameState.localPaddle.y : gameState.remotePaddle.y;
-                gameState.ball.y = paddleY + PADDLE_HEIGHT / 2;
+                gameState.ball.y = gameState.localPaddle.y + PADDLE_HEIGHT / 2;
             } else {
-                // Left paddle serving
+                // Non-owner on left
                 gameState.ball.x = 20 + PADDLE_WIDTH + BALL_SIZE;
-                // If I am left (non-owner), use my paddle. If I am right, use remote paddle.
-                const paddleY = !gameState.isBallOwner ? gameState.localPaddle.y : gameState.remotePaddle.y;
-                gameState.ball.y = paddleY + PADDLE_HEIGHT / 2;
+                gameState.ball.y = gameState.localPaddle.y + PADDLE_HEIGHT / 2;
             }
         }
 
@@ -1231,9 +1215,8 @@ function checkScore() {
         if (gameState.localPaddle.lives <= 0 || gameState.remotePaddle.lives <= 0) {
             endGame(gameState.localPaddle.lives > 0);
         } else {
-            // Left missed -> Left serves
-            resetBall('left');
-            sendScoreUpdate('left');
+            resetBall();
+            sendLifeUpdate();
         }
     } else if (gameState.ball.x > CANVAS_WIDTH) {
         // Right side (ball owner) missed
@@ -1249,46 +1232,48 @@ function checkScore() {
         if (gameState.localPaddle.lives <= 0 || gameState.remotePaddle.lives <= 0) {
             endGame(gameState.localPaddle.lives > 0);
         } else {
-            // Right missed -> Right serves
-            resetBall('right');
-            sendScoreUpdate('right');
+            resetBall();
+            sendLifeUpdate();
         }
     }
 }
 
-function resetBall(serverSide) {
-    // Determine who serves (whoever got scored on serves)
-    // serverSide: 'left' or 'right'
-    gameState.serverSide = serverSide || (gameState.isBallOwner ? 'right' : 'left'); // Default to ball owner if undefined
-
+function resetBall() {
     // Position ball at serving paddle
     resetBallPosition();
 
-    gameState.waitingForServe = true;
-    gameState.ball.vx = 0;
-    gameState.ball.vy = 0;
+    // Determine who serves (whoever got scored on serves)
+    // For now, alternate based on ball owner
+    const servingPlayer = gameState.isBallOwner;
+    gameState.hasActiveBallAuthority = servingPlayer;
 
-    // Check if it's my turn
-    // I am 'right' if isBallOwner is true, 'left' if false
-    const amRight = gameState.isBallOwner;
-    const amLeft = !gameState.isBallOwner;
+    // Auto-launch ball from paddle with random angle toward opponent
+    const angle = (Math.random() * Math.PI / 3) - Math.PI / 6;
 
-    let isMyTurn = false;
-    if (gameState.serverSide === 'right' && amRight) isMyTurn = true;
-    if (gameState.serverSide === 'left' && amLeft) isMyTurn = true;
-
-    gameState.isMyTurn = isMyTurn;
-    gameState.hasActiveBallAuthority = isMyTurn;
-
-    if (isMyTurn) {
-        document.getElementById('status-text').textContent = "Your Serve - Tap to Launch";
-        document.getElementById('shootBtn').style.display = 'inline-flex';
-        document.getElementById('shootBtn').disabled = false;
+    if (gameState.isBallOwner) {
+        // Ball owner on right - shoot left (toward opponent)
+        gameState.ball.vx = -Math.cos(angle) * BALL_SPEED_INITIAL;
     } else {
-        document.getElementById('status-text').textContent = "Opponent's Serve";
-        document.getElementById('shootBtn').style.display = 'none';
+        // Non-owner on left - shoot right (toward opponent)
+        gameState.ball.vx = Math.cos(angle) * BALL_SPEED_INITIAL;
     }
+    gameState.ball.vy = Math.sin(angle) * BALL_SPEED_INITIAL;
 
+    // Send ball state immediately
+    const b = gameState.ball;
+    // Use synced time for launch event
+    const launchTime = timeSync.getSyncedTime();
+
+    SpixiAppSdk.sendNetworkData(JSON.stringify({
+        a: "launch",
+        t: launchTime,
+        b: {
+            x: Math.round(CANVAS_WIDTH - b.x),
+            y: Math.round(b.y),
+            vx: Math.round(-b.vx * 100),   // Integer velocity (*100)
+            vy: Math.round(b.vy * 100)
+        }
+    }));
     lastDataSent = SpixiTools.getTimestamp();
 }
 
@@ -1387,9 +1372,9 @@ function render() {
         ctx.fillStyle = leftPaddleColor;
         ctx.fillRect(leftPaddleX, leftPaddleY, PADDLE_WIDTH, PADDLE_HEIGHT);
 
-        // Draw ball - only if it has velocity OR we have authority OR waiting for serve
+        // Draw ball - only if it has velocity OR we have authority (waiting to serve)
         // Lower threshold to 0.01 to ensure ball is visible even at very low speeds
-        const ballVisible = (Math.abs(gameState.ball.vx) > 0.01 || Math.abs(gameState.ball.vy) > 0.01) || gameState.hasActiveBallAuthority || gameState.waitingForServe;
+        const ballVisible = (Math.abs(gameState.ball.vx) > 0.01 || Math.abs(gameState.ball.vy) > 0.01) || gameState.hasActiveBallAuthority;
         if (ballVisible) {
             ctx.fillStyle = '#ffffff';
             ctx.beginPath();
@@ -1973,15 +1958,14 @@ function reconcilePaddleState(authPaddleY, lastAckSeq) {
     gameState.localPaddle.y = predictedPaddleY;
 }
 
-function sendScoreUpdate(nextServerSide) {
-    // Send score update and next server info
+function sendLifeUpdate() {
+    // Send life updates sporadically (only when score changes, not on timer)
     const currentTime = SpixiTools.getTimestamp();
     lastDataSent = currentTime;
     SpixiAppSdk.sendNetworkData(JSON.stringify({
-        a: "score",
+        a: "lives",
         local: gameState.localPaddle.lives,
-        remote: gameState.remotePaddle.lives,
-        nextServer: nextServerSide
+        remote: gameState.remotePaddle.lives
     }));
 }
 
@@ -2239,18 +2223,6 @@ SpixiAppSdk.onNetworkData = function (senderAddress, data) {
                         vx: gameState.ball.vx,
                         vy: gameState.ball.vy
                     });
-                }
-                break;
-
-            case "score":
-                // Update lives and reset ball for next point
-                if (!gameState.isBallOwner) {
-                    gameState.localPaddle.lives = msg.remote;
-                    gameState.remotePaddle.lives = msg.local;
-                    updateLivesDisplay();
-
-                    // Reset ball with correct server side
-                    resetBall(msg.nextServer);
                 }
                 break;
 
