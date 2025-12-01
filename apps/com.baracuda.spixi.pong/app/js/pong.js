@@ -899,9 +899,64 @@ function updateBall() {
 /**
  * Ball interpolation for non-authoritative client
  * Uses velocity-based extrapolation to predict ball position at 60fps
- * from 10fps network updates (every ~100ms)
+ * from network updates.
  * 
  * This creates smooth motion by:
+ * 1. Extrapolating local position based on velocity
+ * 2. Gently correcting towards the authoritative target from server
+ */
+function updateBallInterpolation() {
+    // 1. Simulate the LOCAL ball (Client-side prediction)
+    // First, extrapolate position using current velocity (like local simulation)
+    // This gives us smooth 60fps motion between network updates
+    gameState.ball.x += gameState.ball.vx;
+    gameState.ball.y += gameState.ball.vy;
+
+    // Handle wall bounces locally for smooth response
+    if (gameState.ball.y <= BALL_SIZE / 2 || gameState.ball.y >= CANVAS_HEIGHT - BALL_SIZE / 2) {
+        gameState.ball.vy = -gameState.ball.vy;
+        gameState.ball.y = Math.max(BALL_SIZE / 2, Math.min(CANVAS_HEIGHT - BALL_SIZE / 2, gameState.ball.y));
+        playWallBounceSound();
+    }
+
+    // 2. Correct drift towards authoritative target
+    // Since we are now receiving frequent updates again, we can just lerp towards the target
+
+    const distanceToTarget = Math.sqrt(
+        Math.pow(gameState.ball.x - ballTarget.x, 2) +
+        Math.pow(gameState.ball.y - ballTarget.y, 2)
+    );
+
+    // Dynamic correction:
+    // - Large error (>50px): Snap immediately (something went wrong/lag spike)
+    // - Medium error (>10px): Fast correction (20% per frame)
+    // - Small error (>1px): Gentle correction (5% per frame)
+
+    if (distanceToTarget > 50) {
+        // Snap to target if very far (indicates major correction/lag spike)
+        gameState.ball.x = ballTarget.x;
+        gameState.ball.y = ballTarget.y;
+        gameState.ball.vx = ballTarget.vx;
+        gameState.ball.vy = ballTarget.vy;
+    } else if (distanceToTarget > 1) {
+        // Apply dynamic position correction
+        const correctionFactor = distanceToTarget > 10 ? 0.2 : 0.05;
+
+        gameState.ball.x += (ballTarget.x - gameState.ball.x) * correctionFactor;
+        gameState.ball.y += (ballTarget.y - gameState.ball.y) * correctionFactor;
+    }
+
+    // Check if velocity changed significantly (indicates bounce/collision)
+    const velocityDiff = Math.sqrt(
+        Math.pow(gameState.ball.vx - ballTarget.vx, 2) +
+        Math.pow(gameState.ball.vy - ballTarget.vy, 2)
+    );
+
+    // Snap velocity on significant change (bounce detected by server)
+    if (velocityDiff > 1.0) {
+        gameState.ball.vx = ballTarget.vx;
+        gameState.ball.vy = ballTarget.vy;
+    } else if (velocityDiff > 0.1) {
         // Small velocity drift - correct gently
         gameState.ball.vx += (ballTarget.vx - gameState.ball.vx) * 0.1;
         gameState.ball.vy += (ballTarget.vy - gameState.ball.vy) * 0.1;
@@ -1588,7 +1643,6 @@ function sendGameState() {
     }
 
     // Include ball state if we have authority and ball is moving
-    // This keeps non-authoritative client updated with smooth interpolation
     const ballActive = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
     if (gameState.hasActiveBallAuthority && ballActive) {
         const b = gameState.ball;
@@ -1601,27 +1655,18 @@ function sendGameState() {
 
         const newBallState = reusableBallState;
 
-        // Check for significant changes to determine if we should send update
-        // 1. Velocity change (bounce/hit) - CRITICAL
-        const velocityChanged = !lastSentBallState ||
+        // Only include if changed significantly (position differs by >2px or velocity changed)
+        // This is a bandwidth optimization, but much less aggressive than "event-only"
+        const ballStateChanged = !lastSentBallState ||
+            Math.abs(lastSentBallState.x - newBallState.x) > 2 ||
+            Math.abs(lastSentBallState.y - newBallState.y) > 2 ||
             lastSentBallState.vx !== newBallState.vx ||
             lastSentBallState.vy !== newBallState.vy;
 
-        // 2. Position drift (correction) - if error > 10px
-        const positionDrift = lastSentBallState && (
-            Math.abs(lastSentBallState.x - newBallState.x) > 10 ||
-            Math.abs(lastSentBallState.y - newBallState.y) > 10
-        );
-
-        // 3. Heartbeat (periodic sync) - every 1 second
-        const currentTime = Date.now();
-        const heartbeatNeeded = currentTime - lastBallSyncTime > 1000;
-
-        if (velocityChanged || positionDrift || heartbeatNeeded) {
+        if (ballStateChanged) {
             // Need to clone for lastSentBallState since we reuse the object
             lastSentBallState = { ...newBallState };
             state.b = newBallState;
-            lastBallSyncTime = currentTime;
         }
     } else if (!ballActive) {
         // Ball stopped - clear cached state
