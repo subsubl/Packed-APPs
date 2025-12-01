@@ -127,7 +127,7 @@ const MAX_LIVES = 3;
 const FRAME_RATE = 60; // Render at 60fps
 // Dynamic network rate variables
 let currentNetworkRate = 33; // Start at 30fps (33ms)
-const NETWORK_RATE_ACTIVE = 33; // 30fps when active
+const NETWORK_RATE_ACTIVE = 40; // 25fps when active (optimized from 30fps)
 const NETWORK_RATE_IDLE = 100; // 10fps when idle
 const NETWORK_RATE_THROTTLED = 66; // 15fps when performance is poor
 
@@ -1647,7 +1647,7 @@ function sendGameState() {
 
         // Include paddle only if changed
         if (paddleChanged) {
-            state.p = paddleY;
+            state.p = Math.round(paddleY); // Round to integer for packet size optimization
         }
 
         // Include sequence number only if changed
