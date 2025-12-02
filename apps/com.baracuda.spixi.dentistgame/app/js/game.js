@@ -32,6 +32,68 @@ let collectibles;
 let score = 0;
 let scoreText;
 let gameOver = false;
+let soundManager;
+
+// --- Audio System (Procedural 8-bit Sounds) ---
+class SoundManager {
+    constructor(scene) {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.value = 0.3; // Lower volume
+        this.masterGain.connect(this.ctx.destination);
+    }
+
+    playTone(freq, type, duration) {
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+
+        osc.start();
+        osc.stop(this.ctx.currentTime + duration);
+    }
+
+    playJump() {
+        this.playTone(400, 'square', 0.1);
+        setTimeout(() => this.playTone(600, 'square', 0.2), 50);
+    }
+
+    playCollect() {
+        this.playTone(1000, 'sine', 0.1);
+        setTimeout(() => this.playTone(1500, 'sine', 0.2), 50);
+    }
+
+    playAttack() {
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(50, this.ctx.currentTime + 0.1);
+
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.1);
+    }
+
+    playHit() {
+        this.playTone(150, 'sawtooth', 0.3);
+    }
+}
 
 function preload() {
     this.load.image('tiles', 'img/tiles.png');
@@ -41,6 +103,8 @@ function preload() {
 }
 
 function create() {
+    soundManager = new SoundManager(this);
+
     // Create a simple level procedurally since we don't have a tilemap editor output
     platforms = this.physics.add.staticGroup();
 
@@ -59,6 +123,7 @@ function create() {
     player.setBounce(0.2);
     player.setCollideWorldBounds(true);
     player.setScale(0.15); // Scale down the hippo image
+    player.isAttacking = false;
 
     // Enemies
     enemies = this.physics.add.group();
@@ -91,32 +156,14 @@ function create() {
 
     // Input
     cursors = this.input.keyboard.createCursorKeys();
+    this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.CTRL);
 
     // Score
     scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '32px', fill: '#000' });
 
-    // Mobile Controls (Simple Touch)
-    this.input.addPointer(2);
-
-    // Simple touch zones for left/right/jump
-    const leftZone = this.add.zone(0, 0, 300, 600).setOrigin(0).setInteractive();
-    const rightZone = this.add.zone(500, 0, 300, 600).setOrigin(0).setInteractive();
-    const jumpZone = this.add.zone(0, 0, 800, 600).setOrigin(0).setInteractive(); // Full screen tap for jump logic check
-
-    this.touchLeft = false;
-    this.touchRight = false;
-    this.touchJump = false;
-
-    leftZone.on('pointerdown', () => this.touchLeft = true);
-    leftZone.on('pointerup', () => this.touchLeft = false);
-
-    rightZone.on('pointerdown', () => this.touchRight = true);
-    rightZone.on('pointerup', () => this.touchRight = false);
-
-    this.input.on('pointerdown', (pointer) => {
-        if (pointer.y < 400) this.touchJump = true;
-    });
-    this.input.on('pointerup', () => this.touchJump = false);
+    // Initialize DOOM-style Joystick
+    initJoystick();
 }
 
 function update() {
@@ -124,18 +171,53 @@ function update() {
         return;
     }
 
-    if (cursors.left.isDown || this.touchLeft) {
+    // Player Movement (Joystick simulates Arrow Keys)
+    if (cursors.left.isDown) {
         player.setVelocityX(-160);
         player.flipX = true;
-    } else if (cursors.right.isDown || this.touchRight) {
+    } else if (cursors.right.isDown) {
         player.setVelocityX(160);
         player.flipX = false;
     } else {
         player.setVelocityX(0);
     }
 
-    if ((cursors.up.isDown || this.touchJump) && player.body.touching.down) {
+    // Jump (Up Arrow or Space or Ctrl/Fire)
+    const isJumpDown = cursors.up.isDown ||
+        this.input.keyboard.checkDown(this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.CTRL));
+
+    if (isJumpDown && player.body.touching.down) {
         player.setVelocityY(-430);
+        soundManager.playJump();
+    }
+
+    // Attack (Space or USE button)
+    const isAttackDown = this.input.keyboard.checkDown(this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE));
+
+    if (isAttackDown && !player.isAttacking) {
+        player.isAttacking = true;
+        soundManager.playAttack();
+
+        // Visual feedback (simple tint for now, later animation)
+        player.setTint(0x00ff00);
+
+        // Create a temporary hitbox for the attack
+        const attackHitbox = this.add.zone(player.x + (player.flipX ? -30 : 30), player.y, 40, 40);
+        this.physics.add.existing(attackHitbox);
+
+        this.physics.add.overlap(attackHitbox, enemies, (hitbox, enemy) => {
+            enemy.disableBody(true, true);
+            score += 50; // Bonus for melee kill
+            scoreText.setText('Score: ' + score);
+            soundManager.playHit();
+        });
+
+        // Reset attack after duration
+        setTimeout(() => {
+            player.isAttacking = false;
+            player.clearTint();
+            attackHitbox.destroy();
+        }, 200);
     }
 
     // Simple Enemy Patrol
@@ -152,6 +234,7 @@ function collectItem(player, collectible) {
     collectible.disableBody(true, true);
     score += 10;
     scoreText.setText('Score: ' + score);
+    soundManager.playCollect();
 }
 
 function hitEnemy(player, enemy) {
@@ -161,11 +244,13 @@ function hitEnemy(player, enemy) {
         player.setVelocityY(-200); // Bounce
         score += 20;
         scoreText.setText('Score: ' + score);
+        soundManager.playHit();
     } else {
         this.physics.pause();
         player.setTint(0xff0000);
         gameOver = true;
         scoreText.setText('Game Over! Score: ' + score);
+        soundManager.playHit();
 
         // Restart on click
         this.input.on('pointerdown', () => {
@@ -173,5 +258,186 @@ function hitEnemy(player, enemy) {
             gameOver = false;
             score = 0;
         });
+    }
+}
+
+// --- Joystick & Controls Implementation ---
+
+function initJoystick() {
+    console.log('Initializing Joystick...');
+    const joystick = new Joystick('joystick-container', 'joystick-knob');
+
+    // Setup Exit Button
+    const exitBtn = document.getElementById('btn-quit');
+    if (exitBtn) {
+        const newExitBtn = exitBtn.cloneNode(true);
+        exitBtn.parentNode.replaceChild(newExitBtn, exitBtn);
+        const handleExit = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            try { SpixiAppSdk.back(); } catch (e) { console.error(e); }
+        };
+        newExitBtn.addEventListener('click', handleExit);
+        newExitBtn.addEventListener('touchstart', handleExit);
+    }
+
+    // Setup Action Buttons (Simulate Keys)
+    document.querySelectorAll('.action-btn[data-key]').forEach(btn => {
+        const key = btn.getAttribute('data-key');
+        const simulate = (pressed) => {
+            const eventType = pressed ? 'keydown' : 'keyup';
+            let keyCode;
+
+            // Map keys to Phaser-friendly codes if needed
+            if (key === 'ArrowUp') keyCode = 38;
+            else if (key === 'ArrowDown') keyCode = 40;
+            else if (key === 'ArrowLeft') keyCode = 37;
+            else if (key === 'ArrowRight') keyCode = 39;
+            else if (key === ' ') keyCode = 32;
+            else if (key === 'Control') keyCode = 17;
+            else if (key === 'Escape') keyCode = 27;
+            else if (key === 'Enter') keyCode = 13;
+            else keyCode = key.toUpperCase().charCodeAt(0);
+
+            window.dispatchEvent(new KeyboardEvent(eventType, {
+                key: key,
+                code: key === ' ' ? 'Space' : key,
+                keyCode: keyCode,
+                which: keyCode,
+                bubbles: true
+            }));
+        };
+
+        btn.addEventListener('mousedown', (e) => { e.preventDefault(); simulate(true); btn.classList.add('active'); });
+        btn.addEventListener('mouseup', (e) => { e.preventDefault(); simulate(false); btn.classList.remove('active'); });
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); simulate(true); btn.classList.add('active'); });
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); simulate(false); btn.classList.remove('active'); });
+    });
+}
+
+class Joystick {
+    constructor(containerId, knobId, options = {}) {
+        this.container = document.getElementById(containerId);
+        this.knob = document.getElementById(knobId);
+        this.options = Object.assign({
+            maxDistance: 50,
+            deadZone: 10
+        }, options);
+
+        this.active = false;
+        this.startPos = { x: 0, y: 0 };
+        this.keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+
+        if (this.container && this.knob) {
+            this.initEvents();
+        } else {
+            console.error('Joystick elements not found');
+        }
+    }
+
+    initEvents() {
+        this.container.addEventListener('touchstart', this.handleStart.bind(this), { passive: false });
+        this.container.addEventListener('touchmove', this.handleMove.bind(this), { passive: false });
+        this.container.addEventListener('touchend', this.handleEnd.bind(this));
+        this.container.addEventListener('touchcancel', this.handleEnd.bind(this));
+        this.container.addEventListener('mousedown', this.handleStart.bind(this));
+        document.addEventListener('mousemove', this.handleMove.bind(this));
+        document.addEventListener('mouseup', this.handleEnd.bind(this));
+    }
+
+    handleStart(e) {
+        if (e.type === 'mousedown') {
+            this.active = true;
+            this.startPos = { x: e.clientX, y: e.clientY };
+        } else {
+            this.active = true;
+            this.startPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
+        this.updateKnob(0, 0);
+    }
+
+    handleMove(e) {
+        if (!this.active) return;
+        if (e.cancelable) e.preventDefault();
+
+        let clientX, clientY;
+        if (e.type === 'mousemove') {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        } else {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        }
+
+        const dx = clientX - this.startPos.x;
+        const dy = clientY - this.startPos.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        let moveX = dx;
+        let moveY = dy;
+
+        if (distance > this.options.maxDistance) {
+            const ratio = this.options.maxDistance / distance;
+            moveX = dx * ratio;
+            moveY = dy * ratio;
+        }
+
+        this.updateKnob(moveX, moveY);
+        this.updateKeys(moveX, moveY, distance);
+    }
+
+    handleEnd() {
+        if (!this.active) return;
+        this.active = false;
+        this.updateKnob(0, 0);
+        this.resetKeys();
+    }
+
+    updateKnob(x, y) {
+        this.knob.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+    }
+
+    updateKeys(x, y, distance) {
+        if (distance < this.options.deadZone) {
+            this.resetKeys();
+            return;
+        }
+
+        const angle = Math.atan2(y, x) * 180 / Math.PI;
+        const newKeys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+
+        if (angle > -135 && angle < -45) newKeys.ArrowUp = true;
+        if (angle > 45 && angle < 135) newKeys.ArrowDown = true;
+        if (angle > 135 || angle < -135) newKeys.ArrowLeft = true;
+        if (angle > -45 && angle < 45) newKeys.ArrowRight = true;
+
+        this.triggerKeyChanges(newKeys);
+    }
+
+    resetKeys() {
+        this.triggerKeyChanges({ ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false });
+    }
+
+    triggerKeyChanges(newKeys) {
+        for (const key in newKeys) {
+            if (newKeys[key] !== this.keys[key]) {
+                this.keys[key] = newKeys[key];
+                this.simulateKey(key, newKeys[key]);
+            }
+        }
+    }
+
+    simulateKey(key, pressed) {
+        const eventType = pressed ? 'keydown' : 'keyup';
+        const keyCodeMap = { 'ArrowUp': 38, 'ArrowDown': 40, 'ArrowLeft': 37, 'ArrowRight': 39 };
+        const keyCode = keyCodeMap[key];
+
+        window.dispatchEvent(new KeyboardEvent(eventType, {
+            key: key,
+            code: key,
+            keyCode: keyCode,
+            which: keyCode,
+            bubbles: true
+        }));
     }
 }
