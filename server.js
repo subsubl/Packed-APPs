@@ -204,7 +204,8 @@ const mainServer = http.createServer((req, res) => {
         '.woff': 'font/woff',
         '.woff2': 'font/woff2',
         '.ttf': 'font/ttf',
-        '.eot': 'application/vnd.ms-fontobject'
+        '.eot': 'application/vnd.ms-fontobject',
+        '.wasm': 'application/wasm'
     };
 
     const contentType = mimeTypes[ext] || 'application/octet-stream';
@@ -610,7 +611,8 @@ const devServer = http.createServer((req, res) => {
             '.woff': 'font/woff',
             '.woff2': 'font/woff2',
             '.ttf': 'font/ttf',
-            '.eot': 'application/vnd.ms-fontobject'
+            '.eot': 'application/vnd.ms-fontobject',
+            '.wasm': 'application/wasm'
         };
 
         const contentType = mimeTypes[ext] || 'application/octet-stream';
