@@ -65,10 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Lists (basic)
         html = html.replace(/^\s*[\-\*] (.*$)/gim, '<li>$1</li>');
         html = html.replace(/(<li>.*<\/li>)/gim, '<ul>$1</ul>'); // Wrap consecutive lis (very naive)
-        // Better list wrapping would require more complex logic, but this is a start.
-        // A slightly better approach for lists:
-        // We can't easily do full list parsing with regex alone without state. 
-        // For now, let's just make them block elements.
 
         // Paragraphs (double newline)
         html = html.replace(/\n\n/gim, '<br><br>');
@@ -76,20 +72,132 @@ document.addEventListener('DOMContentLoaded', () => {
         return html;
     }
 
-    item.li.style.display = 'none';
-}
+    // Improved List Handling (Post-processing)
+    function fixLists(html) {
+        return html.replace(/<\/ul>\s*<ul>/gim, '');
+    }
+
+    // Helper to fetch text content via XHR (better support for file:// protocol)
+    function fetchText(url) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', url, true);
+            xhr.onload = function () {
+                // Status 0 is for local files
+                if (xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)) {
+                    resolve(xhr.responseText);
+                } else {
+                    reject(new Error(`Failed to load ${url}: ${xhr.status} ${xhr.statusText}`));
+                }
+            };
+            xhr.onerror = function () {
+                reject(new Error(`Network error loading ${url}`));
+            };
+            xhr.send();
+        });
+    }
+
+    async function loadContent(filename) {
+        try {
+            // Ensure filename ends with .md
+            if (!filename.endsWith('.md')) {
+                filename += '.md';
+            }
+
+            const text = await fetchText(`./data/${filename}`);
+            const html = parseMarkdown(text);
+            contentContainer.innerHTML = fixLists(html);
+
+            // Scroll to top
+            contentContainer.scrollTop = 0;
+
+            // Re-attach event listeners to new links
+            const links = contentContainer.querySelectorAll('a[data-link]');
+            links.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const target = link.getAttribute('data-link');
+                    loadContent(target);
+                    if (window.innerWidth <= 768) {
+                        sidebar.classList.remove('open');
+                    }
+                });
+            });
+
+            // Close sidebar on mobile
+            if (window.innerWidth <= 768) {
+                sidebar.classList.remove('open');
+            }
+        } catch (error) {
+            console.error(error);
+            contentContainer.innerHTML = `<p>Error loading content: ${error.message}</p>`;
+        }
+    }
+
+    async function buildMenu() {
+        try {
+            const text = await fetchText('./data/Home.md');
+
+            // Parse Home.md specifically to build the menu
+            // We expect lines like ### [Title](Filename)
+            const lines = text.split('\n');
+            const ul = document.createElement('ul');
+            const menuItems = []; // Store items for search
+
+            lines.forEach(line => {
+                const match = line.match(/\[(.*?)\]\((.*?)\)/);
+                if (match) {
+                    const title = match[1];
+                    const filename = match[2];
+
+                    const li = document.createElement('li');
+                    const a = document.createElement('a');
+                    a.textContent = title;
+                    a.href = '#';
+                    a.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        loadContent(filename);
+
+                        // Update active state
+                        document.querySelectorAll('#menu a').forEach(el => el.classList.remove('active'));
+                        a.classList.add('active');
+
+                        if (window.innerWidth <= 768) {
+                            sidebar.classList.remove('open');
+                        }
+                    });
+                    li.appendChild(a);
+                    ul.appendChild(li);
+
+                    menuItems.push({ li, title: title.toLowerCase() });
+                }
+            });
+
+            menuContainer.appendChild(ul);
+
+            // Search Functionality
+            const searchInput = document.getElementById('search-input');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    const term = e.target.value.toLowerCase();
+                    menuItems.forEach(item => {
+                        if (item.title.includes(term)) {
+                            item.li.style.display = '';
+                        } else {
+                            item.li.style.display = 'none';
+                        }
                     });
                 });
             }
 
-// Load Introduction by default
-loadContent('Introduction');
+            // Load Introduction by default
+            loadContent('Introduction');
 
         } catch (error) {
-    console.error(error);
-    menuContainer.innerHTML = `<p>Error loading menu: ${error.message}</p>`;
-}
+            console.error(error);
+            menuContainer.innerHTML = `<p>Error loading menu: ${error.message}</p>`;
+        }
     }
 
-buildMenu();
+    buildMenu();
 });

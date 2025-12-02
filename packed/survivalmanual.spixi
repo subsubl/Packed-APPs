@@ -9,5 +9,5 @@ minUsers = 1
 maxUsers = 1
 protocols = 
 contentUrl = survivalmanual.zip
-checksum = de3437661e9aa1940603d66c59e0352b3c6d213d92be6a54e5c768b95389757a
-contentSize = 2857704
+checksum = 85ddc493b9ab58b12dbb7851d21f7b7fb39ce2dd8cbc8fb13ba4663c120f26d0
+contentSize = 2856821
