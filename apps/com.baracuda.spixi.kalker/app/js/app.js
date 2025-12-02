@@ -42,15 +42,23 @@ document.addEventListener("DOMContentLoaded", () => {
         inputField.focus();
 
         if (key === 'Enter') {
-            // Simulate Enter key press
-            const event = new KeyboardEvent('keydown', {
+            // Simulate Enter key press - dispatch to input and window
+            const eventInit = {
                 key: 'Enter',
                 code: 'Enter',
                 keyCode: 13,
                 which: 13,
-                bubbles: true
-            });
-            inputField.dispatchEvent(event);
+                bubbles: true,
+                cancelable: true,
+                view: window
+            };
+
+            inputField.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+            inputField.dispatchEvent(new KeyboardEvent('keypress', eventInit));
+            inputField.dispatchEvent(new KeyboardEvent('keyup', eventInit));
+
+            // Also try dispatching to the component itself
+            kalk.dispatchEvent(new KeyboardEvent('keydown', eventInit));
         } else if (key === 'CLEAR') {
             inputField.value = '';
             // Trigger input event to update state
