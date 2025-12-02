@@ -1,5 +1,5 @@
 /* Vintage TI Calculator Styling */
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
 
 body {
     margin: 0;
@@ -31,11 +31,12 @@ body {
     background-size: cover;
     background-position: center;
     border-radius: 20px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding-top: 80px; /* Adjust based on screen cutout position */
+    padding-top: 80px;
+    /* Adjust based on screen cutout position */
     box-sizing: border-box;
 }
 
@@ -43,21 +44,24 @@ body {
 .screen-container {
     width: 260px;
     height: 160px;
-    background-color: #9ea792; /* LCD Green */
-    box-shadow: inset 2px 2px 5px rgba(0,0,0,0.4);
+    background-color: #9ea792;
+    /* LCD Green */
+    box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.4);
     border-radius: 5px;
     overflow: hidden;
     padding: 10px;
     box-sizing: border-box;
     margin-bottom: 30px;
     position: relative;
-    top: -20px; /* Fine tune position */
+    top: -20px;
+    /* Fine tune position */
 }
 
 /* Override Kalker internal styles for LCD look */
 kalk-calculator {
     --background-color: transparent;
-    --color: #111; /* Dark pixel color */
+    --color: #111;
+    /* Dark pixel color */
     font-family: 'Share Tech Mono', monospace !important;
     font-size: 1.1em;
     height: 100%;
@@ -100,7 +104,7 @@ kalk-calculator {
     display: flex;
     justify-content: center;
     align-items: center;
-    box-shadow: 2px 2px 4px rgba(0,0,0,0.4), inset 1px 1px 1px rgba(255,255,255,0.2);
+    box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.4), inset 1px 1px 1px rgba(255, 255, 255, 0.2);
     transition: transform 0.1s, box-shadow 0.1s;
     user-select: none;
     flex: 1;
@@ -109,15 +113,17 @@ kalk-calculator {
 
 .btn:active {
     transform: translate(1px, 1px);
-    box-shadow: 1px 1px 2px rgba(0,0,0,0.4);
+    box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 /* Button Colors */
 .btn-graph {
     background-color: #889;
     color: white;
-    height: 25px; /* Smaller top buttons */
-    border-radius: 10px 10px 0 0; /* Rounded top */
+    height: 25px;
+    /* Smaller top buttons */
+    border-radius: 10px 10px 0 0;
+    /* Rounded top */
 }
 
 .btn-sci {
@@ -145,13 +151,28 @@ kalk-calculator {
 .btn-enter {
     background-color: #468;
     color: white;
-    flex: 1.5; /* Enter is wider */
+    flex: 1.5;
+    /* Enter is wider */
 }
 
 /* Specific button overrides */
-.btn[data-key="2nd"] { background-color: #e8a825; color: black; }
-.btn[data-key="ALPHA"] { background-color: #9cc; color: black; }
-.btn[data-key="ON"] { background-color: #333; color: white; font-size: 10px; align-items: flex-end; padding-bottom: 5px; }
+.btn[data-key="2nd"] {
+    background-color: #e8a825;
+    color: black;
+}
+
+.btn[data-key="ALPHA"] {
+    background-color: #9cc;
+    color: black;
+}
+
+.btn[data-key="ON"] {
+    background-color: #333;
+    color: white;
+    font-size: 10px;
+    align-items: flex-end;
+    padding-bottom: 5px;
+}
 
 /* Responsive scaling for smaller screens */
 @media (max-height: 750px) {
