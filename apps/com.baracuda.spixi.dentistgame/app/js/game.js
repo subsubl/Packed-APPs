@@ -1,9 +1,9 @@
 const config = {
     type: Phaser.AUTO,
     width: window.innerWidth,
-    height: window.innerHeight,
+    height: window.innerHeight * 0.66,
     parent: 'game-container',
-    backgroundColor: '#87CEEB',
+    backgroundColor: '#ADD8E6',
     physics: {
         default: 'arcade',
         arcade: {
@@ -97,9 +97,10 @@ class SoundManager {
 
 function preload() {
     this.load.image('tiles', 'img/tiles.png');
-    this.load.image('player', 'img/player.png');
+    this.load.spritesheet('player', 'img/player.png', { frameWidth: 32, frameHeight: 32 });
     this.load.image('enemy', 'img/enemy.png');
     this.load.image('collectible', 'img/collectible.png');
+    this.load.image('floss', 'img/floss.png');
 }
 
 function create() {
@@ -107,15 +108,35 @@ function create() {
 
     // Dynamic World Bounds based on screen size, but keep minimum playable area
     const worldWidth = Math.max(window.innerWidth, 800);
-    const worldHeight = Math.max(window.innerHeight, 600);
+    const worldHeight = Math.max(window.innerHeight * 0.66, 400); // Minimum height logic
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
     // Player
     player = this.physics.add.sprite(100, worldHeight - 100, 'player');
     player.setBounce(0.2);
     player.setCollideWorldBounds(true);
-    player.setScale(0.15);
+    player.setScale(2);
     player.isAttacking = false;
+
+    this.anims.create({
+        key: 'left',
+        frames: this.anims.generateFrameNumbers('player', { start: 0, end: 3 }),
+        frameRate: 10,
+        repeat: -1
+    });
+
+    this.anims.create({
+        key: 'turn',
+        frames: [{ key: 'player', frame: 4 }],
+        frameRate: 20
+    });
+
+    this.anims.create({
+        key: 'right',
+        frames: this.anims.generateFrameNumbers('player', { start: 5, end: 8 }),
+        frameRate: 10,
+        repeat: -1
+    });
 
     // Camera
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
@@ -162,22 +183,22 @@ function startLevel(scene, level) {
     collectibles = scene.physics.add.group();
 
     const worldWidth = Math.max(window.innerWidth, 800);
-    const worldHeight = Math.max(window.innerHeight, 600);
+    const worldHeight = Math.max(window.innerHeight * 0.66, 400);
 
     // --- LEVEL 1: The Gum Gardens (Horizontal) ---
     if (level === 1) {
         scene.physics.world.setBounds(0, 0, worldWidth, worldHeight);
         scene.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
 
-        // Ground
+        // Ground (gums)
         for (let x = 0; x < worldWidth; x += 32) {
             platforms.create(x + 16, worldHeight - 16, 'tiles').setScale(1).setCrop(0, 0, 32, 32);
         }
 
-        // Platforms
-        platforms.create(worldWidth * 0.75, worldHeight * 0.66, 'tiles').setScale(1);
-        platforms.create(worldWidth * 0.1, worldHeight * 0.4, 'tiles').setScale(1);
-        platforms.create(worldWidth * 0.9, worldHeight * 0.35, 'tiles').setScale(1);
+        // Platforms (teeth)
+        platforms.create(worldWidth * 0.75, worldHeight * 0.66, 'tiles').setScale(1).setCrop(32, 0, 32, 32);
+        platforms.create(worldWidth * 0.1, worldHeight * 0.4, 'tiles').setScale(1).setCrop(32, 0, 32, 32);
+        platforms.create(worldWidth * 0.9, worldHeight * 0.35, 'tiles').setScale(1).setCrop(32, 0, 32, 32);
 
         // Player Start
         player.setPosition(100, worldHeight - 100);
@@ -193,6 +214,9 @@ function startLevel(scene, level) {
         for (let i = 0; i < 5; i++) {
             collectibles.create(200 + i * 150, 0, 'collectible').setScale(0.1).setBounceY(0.5);
         }
+        for (let i = 0; i < 3; i++) {
+            collectibles.create(300 + i * 250, 0, 'floss').setScale(0.1).setBounceY(0.5);
+        }
     }
 
     // --- LEVEL 2: The Molar Mountains (Vertical) ---
@@ -202,16 +226,16 @@ function startLevel(scene, level) {
         scene.physics.world.setBounds(0, 0, worldWidth, levelHeight);
         scene.cameras.main.setBounds(0, 0, worldWidth, levelHeight);
 
-        // Ground
+        // Ground (gums)
         for (let x = 0; x < worldWidth; x += 32) {
             platforms.create(x + 16, levelHeight - 16, 'tiles').setScale(1).setCrop(0, 0, 32, 32);
         }
 
-        // Vertical Platforms (Zig-Zag up)
+        // Vertical Platforms (teeth)
         for (let i = 1; i < 6; i++) {
             const x = (i % 2 === 0) ? worldWidth * 0.2 : worldWidth * 0.8;
             const y = levelHeight - (i * 200);
-            platforms.create(x, y, 'tiles').setScale(1);
+            platforms.create(x, y, 'tiles').setScale(1).setCrop(32, 0, 32, 32);
 
             // Add enemy on some platforms
             if (i % 2 !== 0) {
@@ -224,10 +248,13 @@ function startLevel(scene, level) {
 
             // Add collectible
             collectibles.create(x, y - 80, 'collectible').setScale(0.1).setBounceY(0.5);
+            if (i % 2 === 0) {
+                collectibles.create(x, y - 120, 'floss').setScale(0.1).setBounceY(0.5);
+            }
         }
 
         // Goal Platform at top
-        platforms.create(worldWidth * 0.5, 100, 'tiles').setScale(1);
+        platforms.create(worldWidth * 0.5, 100, 'tiles').setScale(1).setCrop(32, 0, 32, 32);
 
         // Player Start (Bottom)
         player.setPosition(100, levelHeight - 100);
@@ -249,12 +276,16 @@ function update() {
     // Player Movement (Joystick simulates Arrow Keys)
     if (cursors.left.isDown) {
         player.setVelocityX(-160);
-        player.flipX = true;
+
+        player.anims.play('left', true);
     } else if (cursors.right.isDown) {
         player.setVelocityX(160);
-        player.flipX = false;
+
+        player.anims.play('right', true);
     } else {
         player.setVelocityX(0);
+
+        player.anims.play('turn');
     }
 
     // Jump (Up Arrow or Space or Ctrl/Fire)
@@ -331,7 +362,11 @@ function update() {
 
 function collectItem(player, collectible) {
     collectible.disableBody(true, true);
-    score += 10;
+    if (collectible.texture.key === 'floss') {
+        score += 25;
+    } else {
+        score += 10;
+    }
     scoreText.setText('Score: ' + score);
     soundManager.playCollect();
 }
