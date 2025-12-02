@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!url.startsWith('http')) {
                 // Remove any leading ./ or /
                 url = url.replace(/^\.?\//, '');
-                return `<img src="data/${url}" alt="${alt}">`;
+                return `<img src="./data/${url}" alt="${alt}">`;
             }
             return `<img src="${url}" alt="${alt}">`;
         });
@@ -89,8 +89,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 filename += '.md';
             }
 
-            const response = await fetch(`data/${filename}`);
-            if (!response.ok) throw new Error('Failed to load content');
+            const response = await fetch(`./data/${filename}`);
+            if (!response.ok) throw new Error(`Failed to load content: ${response.status} ${response.statusText}`);
             const text = await response.text();
             const html = parseMarkdown(text);
             contentContainer.innerHTML = fixLists(html);
@@ -119,8 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function buildMenu() {
         try {
-            const response = await fetch('data/Home.md');
-            if (!response.ok) throw new Error('Failed to load Home.md');
+            const response = await fetch('./data/Home.md');
+            if (!response.ok) throw new Error(`Failed to load Home.md: ${response.status} ${response.statusText}`);
             const text = await response.text();
 
             // Parse Home.md specifically to build the menu
