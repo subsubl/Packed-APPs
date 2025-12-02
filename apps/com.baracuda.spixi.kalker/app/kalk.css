@@ -43,7 +43,8 @@ body {
 /* Screen Styling */
 .screen-container {
     width: 260px;
-    height: 160px;
+    height: 120px;
+    /* Reduced height to fit better */
     background-color: #9ea792;
     /* LCD Green */
     box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.4);
@@ -51,10 +52,11 @@ body {
     overflow: hidden;
     padding: 10px;
     box-sizing: border-box;
-    margin-bottom: 30px;
+    margin-bottom: 40px;
+    /* More space below screen */
     position: relative;
-    top: -20px;
-    /* Fine tune position */
+    top: 20px;
+    /* Moved down to align with chassis window */
 }
 
 /* Override Kalker internal styles for LCD look */
@@ -63,13 +65,15 @@ kalk-calculator {
     --color: #111;
     /* Dark pixel color */
     font-family: 'Share Tech Mono', monospace !important;
-    font-size: 1.1em;
+    font-size: 1.2em;
+    /* Slightly larger text */
     height: 100%;
     display: block;
 }
 
 /* Hide default button panel if it appears */
-.button-panel {
+.button-panel,
+.input-area+section {
     display: none !important;
 }
 
