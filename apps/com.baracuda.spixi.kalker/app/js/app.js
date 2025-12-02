@@ -6,7 +6,35 @@ document.addEventListener("DOMContentLoaded", () => {
         console.warn("SpixiAppSdk not found");
     }
 
-    // Handle button clicks
+    // --- Responsive Scaling Logic ---
+    function scaleCalculator() {
+        const body = document.querySelector('.calculator-body');
+        const container = document.querySelector('.calculator-container');
+        if (!body || !container) return;
+
+        // Target dimensions of the calculator chassis
+        const targetWidth = 380;
+        const targetHeight = 700;
+        const padding = 20;
+
+        // Available space
+        const availableWidth = window.innerWidth - padding;
+        const availableHeight = window.innerHeight - padding;
+
+        // Calculate scale to fit
+        const scaleX = availableWidth / targetWidth;
+        const scaleY = availableHeight / targetHeight;
+        const scale = Math.min(1, Math.min(scaleX, scaleY)); // Max scale 1 (don't upscale)
+
+        body.style.transform = `scale(${scale})`;
+        body.style.transformOrigin = 'center center';
+    }
+
+    // Scale on load and resize
+    window.addEventListener('resize', scaleCalculator);
+    scaleCalculator();
+
+    // --- Button Event Listeners ---
     const keys = document.querySelectorAll('.btn');
     const kalk = document.querySelector('kalk-calculator');
 
@@ -67,7 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
             inputField.value = inputField.value.slice(0, -1);
             inputField.dispatchEvent(new Event('input', { bubbles: true }));
         } else if (key === 'ArrowLeft') {
-            // Move cursor left (simple implementation)
+            // Move cursor left
             const start = inputField.selectionStart;
             inputField.setSelectionRange(Math.max(0, start - 1), Math.max(0, start - 1));
         } else if (key === 'ArrowRight') {

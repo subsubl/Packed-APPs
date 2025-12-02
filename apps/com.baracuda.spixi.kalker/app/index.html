@@ -171,32 +171,18 @@
                                         <button class="btn btn-sci" data-key="ON">ON</button>
                                         <button class="btn btn-num" data-key="0">0</button>
                                         <button class="btn btn-num" data-key=".">.</button>
-                                        <button class="btn btn-num" data-key="-">(-)</button>
-                                        <button class="btn btn-enter" data-key="Enter">ENTER</button>
-                                    </div>
-                                </div>
+                                        <script src="bundle.js"></script>
 
-                                <!-- Debug Overlay -->
-                                <script src="js/debug-overlay.js"></script>
-                                <!-- Spixi SDK -->
-                                <script src="js/spixi.js"></script>
-                                <!-- App Logic -->
-                                <script src="js/app.js"></script>
-                                <!-- Fetch Polyfill for WASM -->
-                                <script src="js/fetch-polyfill.js"></script>
-                                <!-- Kalker Bundle -->
-                                <script src="bundle.js"></script>
-
-                                <script>
-                                    // Mobile/Touch adjustments
-                                    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry/i.test(navigator.userAgent)) {
-                                        const kalk = document.querySelector("kalk-calculator");
-                                        if (kalk) {
-                                            kalk.setAttribute("buttonpanel", "true");
-                                            kalk.setAttribute("numberrow", "true");
-                                        }
-                                    }
-                                </script>
+                                        <script>
+                                            // Mobile/Touch adjustments
+                                            if (/Android|webOS|iPhone|iPad|iPod|BlackBerry/i.test(navigator.userAgent)) {
+                                                const kalk = document.querySelector("kalk-calculator");
+                                                if (kalk) {
+                                                    kalk.setAttribute("buttonpanel", "true");
+                                                    kalk.setAttribute("numberrow", "true");
+                                                }
+                                            }
+                                        </script>
                     </body>
 
                     </html>

@@ -174,10 +174,4 @@ kalk-calculator {
     padding-bottom: 5px;
 }
 
-/* Responsive scaling for smaller screens */
-@media (max-height: 750px) {
-    .calculator-body {
-        transform: scale(0.8);
-        transform-origin: center top;
-    }
-}
+/* Responsive scaling handled by JS */
