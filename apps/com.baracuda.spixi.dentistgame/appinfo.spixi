@@ -1,9 +1,9 @@
 id=com.baracuda.spixi.dentistgame
-name=Super Hippo Dentist
-version=1.0.3
+name=The Case of the Missing Molar
+version=2.0.0
 author=baracuda
-description=A cute game for a dentist friend!
-keywords=game,dentist,hippo,fun
+description=A vintage point-and-click mystery in a dentist's office.
+keywords=game,mystery,adventure,dentist,noir
 main=index.html
 icon=icon.png
 capabilities=singleUser
