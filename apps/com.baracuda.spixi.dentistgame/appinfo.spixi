@@ -1,0 +1,11 @@
+id=com.baracuda.spixi.dentistgame
+name=Happy Hippo Dentist
+version=1.0.0
+author=baracuda
+description=A cute game for a dentist friend!
+keywords=game,dentist,hippo,fun
+main=index.html
+icon=icon.png
+capabilities=singleUser
+minUsers=1
+maxUsers=1

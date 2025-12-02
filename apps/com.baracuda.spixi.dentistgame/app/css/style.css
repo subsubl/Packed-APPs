@@ -1,0 +1,188 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+body {
+    font-family: 'Fredoka One', cursive;
+    background-color: #e0f7fa;
+    background-image: url('../img/bg.png');
+    background-size: 200px;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#game-container {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+    height: 100%;
+    max-height: 800px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+#hippo-container {
+    position: relative;
+    width: 90%;
+    max-width: 400px;
+    aspect-ratio: 1 / 1;
+}
+
+#hippo-base {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transition: transform 0.1s ease;
+}
+
+#hippo-base.shake {
+    animation: shake 0.5s;
+}
+
+@keyframes shake {
+    0% {
+        transform: translate(1px, 1px) rotate(0deg);
+    }
+
+    10% {
+        transform: translate(-1px, -2px) rotate(-1deg);
+    }
+
+    20% {
+        transform: translate(-3px, 0px) rotate(1deg);
+    }
+
+    30% {
+        transform: translate(3px, 2px) rotate(0deg);
+    }
+
+    40% {
+        transform: translate(1px, -1px) rotate(1deg);
+    }
+
+    50% {
+        transform: translate(-1px, 2px) rotate(-1deg);
+    }
+
+    60% {
+        transform: translate(-3px, 1px) rotate(0deg);
+    }
+
+    70% {
+        transform: translate(3px, 1px) rotate(-1deg);
+    }
+
+    80% {
+        transform: translate(-1px, -1px) rotate(1deg);
+    }
+
+    90% {
+        transform: translate(1px, 2px) rotate(0deg);
+    }
+
+    100% {
+        transform: translate(1px, -2px) rotate(-1deg);
+    }
+}
+
+#teeth-container {
+    position: absolute;
+    top: 55%;
+    /* Adjust based on hippo mouth position */
+    left: 25%;
+    width: 50%;
+    height: 15%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 10;
+}
+
+.tooth {
+    width: 18%;
+    height: 100%;
+    background-image: url('../img/tooth_normal.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center bottom;
+    cursor: pointer;
+    transition: transform 0.2s ease, opacity 0.2s;
+}
+
+.tooth:active {
+    transform: scale(0.9);
+}
+
+.tooth.pressed {
+    transform: translateY(10px) scale(0.9);
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.tooth.sore {
+    background-image: url('../img/tooth_sore.png');
+}
+
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 20;
+    text-align: center;
+    padding: 20px;
+    transition: opacity 0.3s ease;
+}
+
+.overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+h1 {
+    color: #4dd0e1;
+    font-size: 3rem;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 0px #fff, 4px 4px 0px #b2ebf2;
+}
+
+p {
+    color: #555;
+    font-size: 1.5rem;
+    margin-bottom: 40px;
+}
+
+.btn {
+    background: #ff8a65;
+    color: white;
+    border: none;
+    padding: 15px 40px;
+    font-size: 1.5rem;
+    border-radius: 50px;
+    font-family: 'Fredoka One', cursive;
+    cursor: pointer;
+    box-shadow: 0 5px 0 #e64a19;
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.btn:active {
+    transform: translateY(5px);
+    box-shadow: 0 0 0 #e64a19;
+}
