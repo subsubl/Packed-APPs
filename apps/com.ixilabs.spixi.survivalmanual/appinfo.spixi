@@ -6,3 +6,6 @@ description=Survival Manual for Spixi
 keywords=survival,manual,guide
 main=index.html
 icon=icon.png
+capabilities=singleUser
+minUsers=1
+maxUsers=1
