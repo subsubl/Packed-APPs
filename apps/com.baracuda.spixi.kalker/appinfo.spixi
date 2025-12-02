@@ -1,0 +1,8 @@
+caVersion = 0
+id = com.baracuda.spixi.kalker
+publisher = Baracuda
+name = Kalker
+version = 1.0.0
+capabilities = 
+maxUsers = 1
+icon = icon.png

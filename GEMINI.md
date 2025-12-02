@@ -14,4 +14,4 @@ This project is a collection of Spixi mini-apps and related tools. The main comp
 
 -   When modifying code, please follow the existing coding style.
 -   Ensure that any new features are accompanied by tests.
--   Do not commit directly to the main branch. Please create a new branch for your changes.
+-   Commit directly to the main branch. 

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DoomWASM for Spixi</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <!-- js-dos CDN -->
+    <script src="https://unpkg.com/js-dos@7/dist/js-dos.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/js-dos@7/dist/js-dos.css">
+</head>
+
+<body>
+    <div class="container">
+        <div id="status-overlay">
+            <div class="status-message">
+                <h2>DoomWASM</h2>
+                <p id="status-text">Initializing DOOM...</p>
+                <div class="loader"></div>
+            </div>
+        </div>
+
+        <!-- DOS container for js-dos -->
+        <div id="dos-container">
+            <div id="dos" style="width: 100%; height: 100%;"></div>
+        </div>
+
+        <div class="controls">
+            <button id="fullscreen-btn" class="control-btn">⛶ Fullscreen</button>
+            <button class="control-btn back-btn" onclick="SpixiAppSdk.back();">← Back to Chat</button>
+        </div>
+    </div>
+
+    <script src="js/spixi-tools.js"></script>
+    <script src="js/spixi-app-sdk.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>
