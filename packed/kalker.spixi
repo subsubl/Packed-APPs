@@ -9,5 +9,5 @@ minUsers = 1
 maxUsers = 2
 protocols = 
 contentUrl = kalker.zip
-checksum = 72bc3a7d06c1576cb9b2cab054e6566be30ff756341ca22f15f82140888b1e10
-contentSize = 1180100
+checksum = 5b48ec7cd9dbf7556855b7107dbd21492b1166a74bf1c6d9fb4ab03025305192
+contentSize = 1180077
