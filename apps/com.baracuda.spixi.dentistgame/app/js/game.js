@@ -1,6 +1,6 @@
 // =======================================
-// Klara's Birthday Mystery - Text Adventure Engine
-// A romantic dentist mystery with a twist
+// Klara's Birthday Mystery - Pure Detective Adventure
+// A 20-minute mystery for a brilliant investigator
 // =======================================
 
 // --- Music System (Synth Noir) ---
@@ -58,407 +58,341 @@ class MusicManager {
 const gameState = {
     inventory: [],
     currentNode: 'start',
-    flags: {}
+    flags: {
+        foundFirstClue: false,
+        talkedToWitness: false,
+        analyzedFingerprints: false,
+        checkedSecurity: false,
+        solvedCodePuzzle: false
+    }
 };
 
 // --- Story Database ---
 const storyNodes = {
     start: {
-        text: `Dear Klara,
-
-On your special birthday, you've been called to investigate the most baffling case of your career. 
-
-You are Klara—brilliant dental detective, solver of impossible mysteries, and tonight, the only person who can recover the legendary Golden Molar.
-
-The artifact, once owned by a Hollywood star, has vanished from Dr. Smile's office. As you enter the dimly lit waiting room, the receptionist is gone. The office is silent except for the soft tick of a clock.
-
-But you notice something—a fresh cup of coffee on the desk, still steaming. Someone was just here...`,
+        text: "Happy Birthday, Detective Klara!\n\nYou're the best investigator in the city, and tonight you've been called to Dr. Decay's Dental Office for a baffling case.\n\nThe legendary Golden Molar—a priceless artifact once owned by a Hollywood star—has vanished. The police are stumped. The insurance company is panicking.\n\nBut you? You live for cases like this.\n\nAs you arrive at the dimly lit office, you notice the door is slightly ajar. Inside, the reception area is eerily quiet. The clock ticks. A coffee cup steams on the desk—still warm.\n\nSomeone was here minutes ago.",
         choices: [
-            { label: 'A) Investigate the coffee and desk', next: 'desk' },
-            { label: 'B) Search the appointment book', next: 'appointment' },
-            { label: 'C) Call out "Hello? Anyone here?"', next: 'callout' },
-            { label: 'D) Explore the hallway', next: 'hallway1' }
+            { label: 'A) Examine the reception desk carefully', next: 'desk_examine' },
+            { label: 'B) Check the appointment book', next: 'appointment_book' },
+            { label: 'C) Look for the security office', next: 'security_office' },
+            { label: 'D) Call out to announce your presence', next: 'call_out' }
         ]
     },
 
-    desk: {
-        text: `You examine the receptionist's desk closely. The coffee is still warm—whoever was here left moments ago.
-
-Next to the cup, you find a sticky note with elegant handwriting: "She arrives at 8PM. Everything must be perfect. - M.S."
-
-M.S.? Dr. Marcus Smile? But why would he leave notes about your arrival time? How did he know you'd come tonight?
-
-You notice the 'S' in his initials is written with a decorative flourish, almost like a heart...`,
+    desk_examine: {
+        text: "You approach the reception desk with a detective's eye.\n\nThe coffee is still hot—whoever was here left in the last 5 minutes. Next to it, a half-eaten sandwich. No signs of struggle.\n\nA sticky note reads: 'Meeting with Dr. D at 8 PM - confirm Golden Molar display.'\n\nYou notice something odd: the computer monitor is on, but the screen is locked. Password protected. However, there's a small notepad with what looks like password hints scribbled in the margins.",
         choices: [
-            { label: 'A) Take the sticky note as evidence', next: 'take_note', inventory: 'Sticky Note' },
-            { label: 'B) Check the appointment book', next: 'appointment' },
-            { label: 'C) Move to the hallway', next: 'hallway1' },
-            { label: 'D) Look under the desk', next: 'under_desk' }
+            { label: 'A) Try to guess the password', next: 'password_attempt' },
+            { label: 'B) Take the sticky note as evidence', next: 'take_sticky', inventory: 'Sticky Note' },
+            { label: 'C) Check under the desk', next: 'under_desk' },
+            { label: 'D) Move to the hallway', next: 'hallway' }
         ]
     },
 
-    appointment: {
-        text: `You flip open the appointment book. Most entries are routine: cleanings, fillings, root canals.
-
-But the last entry makes your breath catch:
-
-"KLARA - 8:00 PM - SPECIAL CONSULTATION"
-
-Your name. Written in that same elegant script. Each letter of your name is written with care, the 'K' and 'A' especially ornate.
-
-Below it, in smaller text: "Tonight I tell her everything."`,
+    appointment_book: {
+        text: "You flip through the appointment book. Most entries are routine:\n\nCleanings, fillings, extractions. Standard dental work.\n\nBut three entries stand out:\n\n6:00 PM - 'Mr. Vittorio' - NO CONTACT INFO\n7:30 PM - 'Insurance Inspection' - CANCELLED in red\n8:00 PM - 'Detective Klara' - YOUR NAME\n\nWait. How did they know you'd be coming at exactly 8 PM? You weren't assigned this case until 7:45 PM.\n\nSomeone knew you'd be here.",
         choices: [
-            { label: 'A) This is strange... continue investigating', next: 'hallway1' },
-            { label: 'B) Look for more clues at the desk', next: 'desk' },
-            { label: 'C) Check the waiting room magazines', next: 'magazines' },
-            { label: 'D) Head directly to Dr. Smile\'s office', next: 'office_early' }
+            { label: 'A) This is suspicious - check security footage', next: 'security_office' },
+            { label: 'B) Investigate who Mr. Vittorio is', next: 'vittorio_clue' },
+            { label: 'C) Search the reception area more', next: 'desk_examine' },
+            { label: 'D) Head directly to the crime scene', next: 'crime_scene_operatory' }
         ]
     },
 
-    callout: {
-        text: `"Hello?" your voice echoes through the empty office. "Anyone here?"
-
-Silence. Then... soft music. It's coming from deeper in the office.
-
-Wait—you recognize this song. It's the same melody that's been in your head all week. How strange...`,
+    security_office: {
+        text: "You find a small security office behind the reception desk.\n\nThree monitors show different angles of the office. One camera is pointed at Operatory 1—the crime scene.\n\nYou rewind the footage. At 7:42 PM, you see something shocking:\n\nA figure in a maintenance uniform enters Operatory 1. Their face is obscured by a cap. They move with purpose—no hesitation. They approach the Golden Molar display, but here's the strange part...\n\nThey don't steal it. They just... look at it. For exactly 30 seconds. Then they adjust something on the pedestal and leave.\n\n3 minutes later, the alarms go off. But the Molar is already gone.",
         choices: [
-            { label: 'A) Follow the music', next: 'follow_music' },
-            { label: 'B) Search the desk first', next: 'desk' },
-            { label: 'C) Be cautious, explore slowly', next: 'hallway1' },
-            { label: 'D) Call out again, louder', next: 'callout2' }
+            { label: 'A) Review footage of the maintenance person leaving', next: 'footage_review', flag: 'checkedSecurity' },
+            { label: 'B) Check what they adjusted on the pedestal', next: 'crime_scene_operatory' },
+            { label: 'C) Look for employee records', next: 'employee_records' },
+            { label: 'D) Print screenshots of the suspect', next: 'print_screenshots', inventory: 'Security Photos' }
         ]
     },
 
-    hallway1: {
-        text: `The hallway stretches before you, doors on either side leading to examination rooms. Framed certificates line the walls—all belonging to Dr. Marcus Smile.
-
-In several photos, you notice he's looking at something off-camera with the most genuine smile. 
-
-The air smells faintly of... roses?`,
+    hallway: {
+        text: "The hallway stretches before you, lined with doors to various examination rooms.\n\nFluorescent lights flicker overhead. You notice:\n\n- Door to Operatory 1 (CRIME SCENE TAPE)\n- Door to Operatory 2 (slightly ajar)\n- X-Ray Room (light is on)\n- Sterilization Room (locked)\n- Dr. Decay's Private Office (door closed)\n- Laboratory (at the end of hall)\n\nYou also notice muddy footprints leading from the emergency exit to Operatory 2. The mud is still wet.",
         choices: [
-            { label: 'A) Check Operatory 1 (Crime Scene)', next: 'operatory1' },
-            { label: 'B) Investigate the X-Ray Room', next: 'xray' },
-            { label: 'C) Enter Dr. Smile\'s private office', next: 'office' },
-            { label: 'D) Follow the scent of roses', next: 'follow_roses' }
+            { label: 'A) Follow the footprints to Operatory 2', next: 'operatory2_footprints' },
+            { label: 'B) Enter the crime scene (Operatory 1)', next: 'crime_scene_operatory' },
+            { label: 'C) Investigate the X-Ray Room', next: 'xray_room' },
+            { label: 'D) Try Dr. Decay\'s office', next: 'office_initial' }
         ]
     },
 
-    operatory1: {
-        text: `You enter Operatory 1. This is supposed to be the crime scene—where the Golden Molar was displayed.
-
-The glass pedestal is indeed empty, but there's no sign of forced entry. No broken glass. No struggle.
-
-Instead, there's a velvet cloth draped over the pedestal, and on it, a single red rose with a note:
-
-"The first clue to finding what's missing... is knowing what you're really looking for. - M"`,
+    crime_scene_operatory: {
+        text: "You duck under the crime scene tape and enter Operatory 1.\n\nThe room looks untouched—almost too perfect. The dental chair sits in the center. On the far wall, a glass pedestal stands empty where the Golden Molar should be.\n\nBut here's what catches your detective eye:\n\n1. The glass case isn't broken. It was opened with thekey.\n2. On the pedestal, a small mechanical device blinks with a red LED.\n3. Fingerprint powder shows THREE distinct sets of prints on the case.\n4. On the floor, a single gold flake—not from the Molar, but from something else.\n\nThis wasn't a smash-and-grab. This was calculated.",
         choices: [
-            { label: 'A) Take the rose', next: 'take_rose', inventory: 'Red Rose' },
-            { label: 'B) Read the note more carefully', next: 'note_clue' },
-            { label: 'C) Search the room thoroughly', next: 'search_op1' },
-            { label: 'D) Leave and check other rooms', next: 'hallway1' }
+            { label: 'A) Examine the blinking device', next: 'examine_device' },
+            { label: 'B) Collect the gold flake', next: 'collect_gold_flake', inventory: 'Gold Flake' },
+            { label: 'C) Analyze the fingerprints', next: 'fingerprint_analysis' },
+            { label: 'D) Look for more hidden clues', next: 'hidden_clues_op1' }
         ]
     },
 
-    xray: {
-        text: `The X-Ray room hums with the quiet buzz of equipment. On the light board, there's an X-ray already mounted.
-
-You step closer. It's an X-ray of teeth, but... wait. One of the molars has been altered. Enhanced. It's shaped like a perfect heart.
-
-Below the X-ray,  another note in that familiar handwriting:
-
-"Klara, some things are invisible to the eye, but clear to the heart. Happy Birthday."`,
+    examine_device: {
+        text: "You carefully examine the blinking device on the pedestal.\n\nIt's a timer. No—wait. It's a WEIGHT SENSOR.\n\nThe setup becomes clear: The Golden Molar sat on this sensor. When it was removed, it should have triggered an immediate alarm.\n\nBut according to security footage, there was a 3-minute delay. Someone modified this sensor.\n\nYou notice fresh solder marks on the circuit board. Someone with technical skills was here recently.\n\nUnder the sensor, etched into the metal: 'Patent #4782-V'",
         choices: [
-            { label: 'A) Take the X-ray', next: 'take_xray', inventory: 'Heart X-Ray' },
-            { label: 'B) This is getting suspicious...', next: 'realization1' },
-            { label: 'C) Continue investigating other rooms', next: 'hallway1' },
-            { label: 'D) Go directly to Dr. Smile\'s office', next: 'office' }
+            { label: 'A) Look up Patent #4782-V', next: 'patent_search', flag: 'foundFirstClue' },
+            { label: 'B) Check employee records for tech skills', next: 'employee_records' },
+            { label: 'C) Continue searching the crime scene', next: 'hidden_clues_op1' },
+            { label: 'D) Move to investigate other rooms', next: 'hallway' }
         ]
     },
 
-    office: {
-        text: `You push open the door to Dr. Marcus Smile's private office. It's... beautiful. 
-
-The desk is mahogany, there are books about dentistry mixed with poetry collections. On the wall, framed photos—one catches your eye.
-
-It's from the community dental clinic six months ago. You're in the photo. You're laughing, helping a child. And in the corner of the frame, you can see Dr. Smile looking at you with an expression you've never noticed before.
-
-On his desk: his diary, open to today's date.`,
+    fingerprint_analysis: {
+        text: "You photograph the three sets of fingerprints and run them through your portable scanner.\n\nRESULTS:\n\nPrint Set #1: Dr. Desmond Decay (owner) - Expected\nPrint Set #2: Rita Rinse (receptionist) - Expected  \nPrint Set #3: UNKNOWN - No match in database\n\nThe third set is interesting. The ridge patterns suggest someone who works with their hands frequently. Manual labor. The prints are slightly smudged—as if wearing thin latex gloves that tore.\n\nProfessional, but made a mistake.",
         choices: [
-            { label: 'A) Read the diary entry', next: 'diary' },
-            { label: 'B) Examine the photograph', next: 'photograph' },
-            { label: 'C) Search the desk drawers', next: 'desk_drawer' },
-            { label: 'D) This feels too personal... leave', next: 'hallway1' }
+            { label: 'A) Look for torn glove fragments', next: 'search_glove_fragments', flag: 'analyzedFingerprints' },
+            { label: 'B) Check maintenance staff records', next: 'maintenance_records' },
+            { label: 'C) Continue investigating the device', next: 'examine_device' },
+            { label: 'D) Move to another location', next: 'hallway' }
         ]
     },
 
-    diary: {
-        text: `Your hands tremble slightly as you read:
-
-"Today is Klara's birthday. For months I've tried to find the courage to tell her how I feel. She's brilliant, kind, lights up every room. When she visits the clinic, my whole day changes.
-
-But I'm just a dentist. She's an investigator who solves impossible cases. Why would she notice me?
-
-So I've created an impossible case. The mystery of the Missing Molar. I'll leave clues. Hope she'll find her way to the truth. To the lab. To me.
-
-If whe comes, I'll tell her everything. If she doesn't... at least I tried."`,
+    operatory2_footprints: {
+        text: "You follow the wet, muddy footprints into Operatory 2.\n\nThis room is under renovation. Dental equipment sits half-assembled. Drop cloths cover the floor. Paint cans line the walls.\n\nThe footprints lead to... a window. It's partially open. Fresh mud on the sill.\n\nSomeone climbed OUT this window recently. But why? The office front door was unlocked.\n\nOn a nearby tool cart, you find a work order: 'Complete Room 2 renovation by Friday - V. Planski, Contractor'\n\nThere's also a blueprint tube, slightly wet, as if someone grabbed it with muddy hands.",
         choices: [
-            { label: 'A) My hands are shaking... continue to the lab', next: 'lab_approach' },
-            { label: 'B) I need a moment to process this', next: 'process' },
-            { label: 'C) Check the other rooms first', next: 'hallway1' },
-            { label: 'D) Look for more evidence', next: 'desk_drawer' }
+            { label: 'A) Examine the blueprints', next: 'blueprints' },
+            { label: 'B) Look outside the window', next: 'window_outside' },
+            { label: 'C) Search the tool cart', next: 'tool_cart' },
+            { label: 'D) Check the work order details', next: 'work_order_check' }
         ]
     },
 
-    lab_approach: {
-        text: `You walk slowly toward the lab, your heart racing. Each step feels heavier. The clues—the notes, the rose, the heart X-ray—they were never about a theft.
-
-They were about you.
-
-As you reach the lab door, you can see light underneath. Someone is inside.
-
-You take a deep breath. This is it.`,
+    xray_room: {
+        text: "The X-Ray Room hums with the quiet buzz of equipment.\n\nOn the light board, several X-ray films are mounted. Most are patient scans, but one is... different.\n\nIt's an X-ray of the Golden Molar itself. Taken yesterday according to the date stamp.\n\nBut here's what's bizarre: The X-ray shows a HOLLOW CAVITY inside the Molar. Something was hidden inside it.\n\nOn the counter, a handwritten note: 'Confirmed: microfilm inside. Estimated value exceeds the Molar itself. -D.D.'\n\nThis isn't about stealing a gold tooth. This is about whatever was HIDDEN inside it.",
         choices: [
-            { label: 'A) Open the door', next: 'lab_reveal' },
-            { label: 'B) Knock first', next: 'lab_knock' },
-            { label: 'C) Take a moment to prepare', next: 'prepare' },
-            { label: 'D) Turn back (you won\'t actually do this)', next: 'no_turning_back' }
+            { label: 'A) Take the X-ray and note', next: 'take_xray_note', inventory: 'X-Ray Film' },
+            { label: 'B) Research what microfilm could be inside', next: 'microfilm_research' },
+            { label: 'C) Confront Dr. Decay about this', next: 'confront_decay' },
+            { label: 'D) Keep investigating quietly', next: 'hallway' }
         ]
     },
 
-    lab_reveal: {
-        text: `You open the door.
-
-Dr. Marcus Smile stands there, surrounded by candles (battery-powered, safely). In the center of the lab table sits the "missing" Golden Molar, perfectly safe in a velvet display box.
-
-Next to it: a birthday cake with candles that spell "KLARA."
-
-He looks at you, nervous but hopeful, and says:
-
-"Klara, I confess. There was no theft. I created this mystery because... because it's the only way I could think to spend your birthday with you. To tell you that every time you visit, you make the whole office brighter. Every smile you give, I wish I could capture. 
-
-I know I'm just the dentist, and you're the brilliant detective. But tonight, I had to tell you—you've stolen my heart, Klara. Happy Birthday."`,
+    office_initial: {
+        text: "You try the handle to Dr. Decay's private office.\n\nLocked. But you notice scuff marks on the doorframe—recent. Someone forced this door open, then locked it again from the inside.\n\nThrough the frosted glass, you see a light is on. Someone is in there.\n\nYou hear papers shuffling. A drawer closing. Footsteps.",
         choices: [
-            { label: 'A) "Marcus, you brilliant fool. Best gift ever."', next: 'ending_romantic' },
-            { label: 'B) "This is the most creative confession I\'ve gotten."', next: 'ending_adventure' },
-            { label: 'C) "Only if you promise the next mystery involves chocolate."', next: 'ending_sweet' },
-            { label: 'D) "Let\'s start with dinner. Then discuss forever."', next: 'ending_practical' }
+            { label: 'A) Knock loudly and identify yourself', next: 'knock_office' },
+            { label: 'B) Pick the lock quietly', next: 'pick_lock' },
+            { label: 'C) Wait and watch who comes out', next: 'stake_out' },
+            { label: 'D) Find another way in', next: 'find_other_entry' }
         ]
     },
 
-    ending_romantic: {
-        text: `You step closer, a smile spreading across your face.
+    lab_investigation: {
+        text: "You enter the laboratory at the end of the hall.\n\nScientific equipment fills the room: microscopes, centrifuges, chemical analysis stations. This is where Dr. Decay analyzed the Golden Molar.\n\nOn the main workstation, files are spread out:\n\n- Analysis Report: 'Golden Molar - 18K Gold, circa 1940s'\n- Chemical Tests: 'Trace amounts of silver nitrate inside cavity'\n- Photograph: Close-up of the hollow interior\n\nBut the most interesting item is a partially burned document in the trash. You can make out:\n\n'...film contains list of... Swiss accounts... must be recovered before... Monday deadline...'\n\nThis is big. Much bigger than a stolen tooth.",
+        choices: [
+            { label: 'A) Reconstruct the burned document', next: 'reconstruct_document' },
+            { label: 'B) Research silver nitrate uses', next: 'silver_nitrate_research' },
+            { label: 'C) Check the analysis equipment', next: 'check_equipment' },
+            { label: 'D) This is dangerous - call for backup', next: 'call_backup' }
+        ]
+    },
 
-"Marcus Smile, you absolute fool," you say, but your eyes are sparkling. "You created an elaborate mystery, left romantic clues, set up candles and cake..."
+    final_confrontation: {
+        text: "All the pieces finally click into place.\n\nYou've gathered enough evidence:\n\n- The Golden Molar contained microfilm with Swiss bank account numbers\n- It's worth millions, explaining the elaborate theft\n- The contractor 'V. Planski' is actually Victor Plaque, a known art thief\n- Dr. Decay discovered the microfilm and was about to report it when it was stolen\n- The theft was precisely timed to your arrival—someone wanted YOU to investigate\n\nYou hear a sound behind you in the lab. You spin around.\n\nDr. Decay stands in the doorway, but he's not alone. Next to him is a woman in a police uniform—but you don't recognize her badge number.\n\n'Detective Klara,' Dr. Decay says nervously, 'I need to explain—'\n\nThe woman cuts him off. 'You've been very thorough, Detective. Too thorough. The microfilm is ours now. You should have stayed out of it.'",
+        choices: [
+            { label: 'A) "You\'re not real police. Who are you?"', next: 'question_fake_cop' },
+            { label: 'B) Activate your emergency beacon', next: 'emergency_beacon' },
+            { label: 'C) Pretend you know less than you do', next: 'play_dumb' },
+            { label: 'D) Make a break for the exit', next: 'run_for_it' }
+        ]
+    },
 
-"I'm sorry, I know it's ridiculous—"
-
-"It's perfect," you interrupt. "No one's ever gone to such lengths for me. No one's ever made me feel like... like I'm worth a grand gesture."
-
-"Klara," he says softly, stepping closer. "You're worth a thousand grand gestures. You're worth mysteries and roses and terrible poetry and... everything."
-
-You're close enough now to see he's trembling slightly.
-
-"Happy Birthday, Klara," he whispers.
-
-"Best birthday ever," you whisper back.
-
-And then, surrounded by candlelight and cake and one very non-stolen Golden Molar, the brilliant detective kisses the romantic dentist.
-
-Some mysteries, you think, have the best solutions.
-
-🎂💕 THE END 💕🎂
-(Happy Birthday, Klara!)`,
+    victory_ending: {
+        text: "Your emergency beacon worked perfectly.\n\nWithin minutes, real police flood the building. The fake officer is revealed to be Maria Vittorio—sister of the crime boss whose accounts were listed on the microfilm.\n\nVictor Plaque is caught trying to fence the Golden Molar at a downtown pawn shop. He breaks down and confesses everything.\n\nDr. Decay is shaken but unharmed. He thanks you profusely: 'I found that microfilm two days ago during a routine cleaning of the Molar. I was going to turn it over to authorities, but then the threats started...'\n\nThe Swiss accounts are frozen. Millions in crime proceeds are recovered. The Golden Molar is returned to its display.\n\nAnd you?\n\nThe mayor himself hands you a commendation. 'Detective Klara, you've done it again. Happy Birthday—and thank you for keeping our city safe.'\n\nBest. Birthday. Ever.\n\n🎂🔍 CASE CLOSED 🔍🎂\n\n(Happy Birthday, Klara! You're brilliant!)",
         choices: []
     },
 
-    ending_adventure: {
-        text: `You laugh—a real, genuine laugh that fills the lab.
-
-"Dr. Marcus Smile," you say, shaking your head with wonder. "You created a fake mystery, left cryptic clues, and turned my birthday into an adventure."
-
-He looks uncertain. "Is that... good?"
-
-"Good?" You step forward. "Marcus, do you know how many birthdays I've had where people just give me gift cards? Or worse, dental floss?"
-
-He winces. "I was guilty of that last year."
-
-"Exactly!" You gesture to the elaborate setup. "But this? This is creative. Personal. Fun. You made me a mystery because you know mysteries are my favorite thing."
-
-"Second favorite," he corrects quietly. "Your favorite thing is helping people smile."
-
-You stop. "You noticed that?"
-
-"Klara, I notice everything about you."
-
-You smile—really smile. "Then you probably noticed I've been hoping you'd ask me to dinner for about six months now."
-
-His eyes widen. "You... what?"
-
-"Happy Birthday to me," you say, "and happy day-I-finally-got-asked-out to you. Now, let's eat that cake, Mr. Elaborate Gestures. We have a lot to talk about."
-
-Starting with: more mysteries, please.
-
-🎂🔍 THE END 🔍🎂
-(Happy Birthday, Klara!)`,
-        choices: []
-    },
-
-    ending_sweet: {
-        text: `You can't help but smile at his nervous, hopeful expression.
-
-"Okay, Dr. Smile," you say, crossing your arms but unable to hide your grin. "I have one condition."
-
-His face falls slightly. "Anything."
-
-"The next elaborate mystery you create for me—" you hold up a finger, "—has to involve chocolate. Good chocolate. None of this sugar-free dental-approved stuff."
-
-He blinks. Then slowly grins. "So... there'll be a next mystery?"
-
-"Marcus," you say, stepping closer, "you just created a fake crime scene, left romantic notes, and risked looking absolutely ridiculous—all to tell me how you feel on my birthday. Of course there's going to be a next mystery. A next date. A next... everything."
-
-"Even with chocolate involved?"
-
-"Especially with chocolate involved." You pick up the fork from beside the cake. "Now, are you going to help me eat this birthday cake, or do I have to solve the Mystery of the Lone Candle-Eater?"
-
-He laughs—the best sound you've heard all night—and picks up another fork.
-
-"Happy Birthday, Klara," he says.
-
-"Happy Beginning, Marcus," you reply.
-
-And somewhere, the Golden Molar gleams in its case, part of the best birthday present you've ever received: a mystery, a confession, and the start of something wonderful.
-
-🎂🍫 THE END 🍫🎂
-(Happy Birthday, Klara!)`,
-        choices: []
-    },
-
-    ending_practical: {
-        text: `You look at the elaborate setup—the candles, the cake, the carefully staged mystery—and then at Marcus's nervous face.
-
-"Okay," you say calmly. "Let's be practical about this."
-
-His face falls slightly. "Oh. Of course. I understand—"
-
-"Marcus." You hold up a hand. "I'm not rejecting you. I'm saying: let's start with dinner. Tomorrow night. Somewhere nice. We can talk about this—" you gesture to all the evidence, "—without the pressure of a grand romantic gesture."
-
-"But I wanted it to be special," he says quietly.
-
-You step forward and take his hand. "It is special. You are special. But Marcus, I don't need mysteries and elaborate setups. What I need is honesty. Time. Real conversation."
-
-"And dinner?" he asks hopefully.
-
-"And dinner," you confirm, smiling. "And then maybe coffee. And then maybe we see where this goes. Because when you wrote 'forever' in your diary... that's not something to decide in one candlelit evening. That's something to discover, step by step."
-
-He looks at you with such warmth. "You're brilliant, you know that?"
-
-"I'm a detective. I'm practical." You squeeze his hand. "But I'm also intrigued. Very intrigued. By you, Dr. Smile."
-
-"Marcus," he says. "Please, call me Marcus."
-
-"Okay, Marcus." You pick up a piece of cake. "Now, before we discuss forever... let's start with eating this cake and celebrating my birthday. Together."
-
-"Together," he echoes, and his smile could light up the whole office.
-
-Some love stories start with grand gestures. Others start practical, and build into something extraordinary.
-
-Yours? Might just be both.
-
-🎂💕 THE END 💕🎂
-(Happy Birthday, Klara!)`,
+    game_over_caught: {
+        text: "You weren't fast enough.\n\nThe fake officer had backup. Before you can escape, you're surrounded.\n\nBut they make a critical mistake—they don't take your phone. While pretending to cooperate, you've already sent all your evidence to headquarters.\n\nPolice arrive within 10 minutes. The criminals are caught. The case is solved.\n\nYour captain shakes his head: 'Klara, you solved the case, but you took an unnecessary risk. Next time, call for backup sooner.'\n\nStill, the Golden Molar is recovered. The criminals are arrested. Justice prevails.\n\nNot your smoothest case, but a win is a win.\n\n🎂⚠️ CASE CLOSED (WITH BACKUP) ⚠️🎂\n\n(Happy Birthday, Klara! Be more careful!)",
         choices: []
     }
 };
 
-// Shortcuts for other nodes...
-storyNodes.take_note = { text: `You carefully place the note in your evidence bag. Something about this whole situation is becoming less sinister and more... mysterious in a different way.`, choices: [{ label: 'A) Continue investigating', next: 'hallway1' }] };
-storyNodes.take_rose = { text: `You pick up the rose. It's real, fresh. Someone went to a florist today. For a "crime scene"?`, choices: [{ label: 'A) This is unusual...', next: 'hallway1' }] };
-storyNodes.take_xray = {
-    text: `You take the heart-shaped X-ray. This is definitely not standard dental imaging.`, choices: [{
-        label: 'A) Something's going on here', next: 'realization1' }] };
-storyNodes.realization1 = { text: `You pause, evidence in hand. A rose. A heart. Birthday wishes. These aren't clues to a theft. These are... clues to something else entirely.`, choices: [{ label: 'A) I need to find Dr. Smile', next: 'office' }, { label: 'B) Check the lab', next: 'lab_approach' }] };
-        storyNodes.lab_knock = { text: `You knock. "Come in, Klara," says a familiar voice. He was waiting for you.`, choices: [{ label: 'A) Enter', next: 'lab_reveal' }] };
+// Helper shortcuts for shorter nodes
+storyNodes.password_attempt = {
+    text: "The password hints read: 'First pet + graduation year'\n\nThis is impossible without knowing personal details. You'll need another approach.",
+    choices: [
+        { label: 'A) Search for personal info elsewhere', next: 'hallway' },
+        { label: 'B) Skip the computer for now', next: 'appointment_book' }
+    ]
+};
 
-        // --- Game Engine ---
-        class GameEngine {
-        constructor() {
-            this.storyText = document.getElementById('story-text');
-            this.choiceButtons = [
-                document.getElementById('choice-a'),
-                document.getElementById('choice-b'),
-                document.getElementById('choice-c'),
-                document.getElementById('choice-d')
-            ];
-            this.inventoryList = document.getElementById('inventory-list');
+storyNodes.call_out = {
+    text: "'Hello? Police! Detective Klara here!'\n\nSilence. Then... footsteps. Running. Away from you.\n\nSomeone is still in the building.",
+    choices: [
+        { label: 'A) Chase the sound', next: 'chase_suspect' },
+        { label: 'B) Secure the scene first', next: 'hallway' }
+    ]
+};
 
-            this.choiceButtons.forEach((btn, index) => {
-                btn.addEventListener('click', () => this.makeChoice(index));
-            });
+storyNodes.under_desk = {
+    text: "Under the desk, you find a dropped key card. Employee badge: 'V. PLANSKI - MAINTENANCE.'\n\nInteresting. The maintenance contractor has access to the building.",
+    choices: [
+        { label: 'A) Take the key card', next: 'take_keycard', inventory: 'Key Card' },
+        { label: 'B) Leave it but note the name', next: 'hallway' }
+    ]
+};
 
-            this.musicManager = new MusicManager();
-            document.addEventListener('click', () => this.musicManager.start(), { once: true });
-        }
+storyNodes.take_keycard = {
+    text: "You pocket the key card. This could unlock important doors.",
+    choices: [{ label: 'A) Continue investigating', next: 'hallway' }]
+};
+
+storyNodes.take_sticky = {
+    text: "You carefully bag the sticky note as evidence.",
+    choices: [{ label: 'A) Continue', next: 'desk_examine' }]
+};
+
+storyNodes.vittorio_clue = {
+    text: "'Mr. Vittorio' has no contact info, no payment method listed. This is a fake appointment—a placeholder.\n\nSomeone used this to gain access to the building.",
+    choices: [{ label: 'A) This is suspicious', next: 'hallway' }]
+};
+
+storyNodes.emergency_beacon = {
+    text: "You subtly activate your emergency beacon. Help is 8 minutes away. You just need to stall...",
+    choices: [
+        { label: 'A) Stall by questioning them', next: 'stall_questions' },
+        { label: 'B) Pretend to cooperate', next: 'pretend_cooperate' }
+    ]
+};
+
+storyNodes.stall_questions = {
+    text: "You ask questions. Lots of questions. About the microfilm, the accounts, the plan.\n\nThe fake officer gets irritated, but Dr. Decay starts talking nervously, buying you time.\n\nYou hear sirens in the distance. Almost there...",
+    choices: [{ label: 'A) Keep stalling...', next: 'victory_ending' }]
+};
+
+storyNodes.pretend_cooperate = {
+    text: "You raise your hands. 'Okay, okay. I'll forget everything I saw. Just let me leave.'\n\nThey're suspicious, but you sound convincing.\n\nSirens wail outside. The fake officer's eyes widen. Too late to escape.",
+    choices: [{ label: 'A) Real police burst in', next: 'victory_ ending' }]
+};
+
+storyNodes.run_for_it = {
+    text: "You bolt for the door, but the fake officer is faster. She grabs your arm—\n\nBut you're a trained detective. You break her grip, spin, and—",
+    choices: [
+        { label: 'A) Fight her off', next: 'fight_scene' },
+        { label: 'B) Sound the fire alarm', next: 'fire_alarm' }
+    ]
+};
+
+storyNodes.fight_scene = {
+    text: "It's brief but intense. You manage to get the upper hand just as real police crash through the door.\n\nBackup arrived! Your earlier call for assistance came through.",
+    choices: [{ label: 'A) Victory!', next: 'victory_ending' }]
+};
+
+storyNodes.fire_alarm = {
+    text: "You slam your fist into the fire alarm. Bells blare. Sprinklers activate.\n\nChaos erupts. In the confusion, you escape and call for real backup.",
+    choices: [{ label: 'A) Case closed!', next: 'victory_ending' }]
+};
+
+storyNodes.play_dumb = {
+    text: "'Microfilm? Swiss accounts? I have no idea what you're talking about. I was just called about a missing tooth.'\n\nThey buy it—mostly. But you know too much. They can't let you leave.\n\nYou need a plan fast.",
+    choices: [
+        { label: 'A) Try to escape', next: 'run_for_it' },
+        { label: 'B) Call for backup covertly', next: 'emergency_beacon' }
+    ]
+};
+
+// --- Game Engine ---
+class GameEngine {
+    constructor() {
+        this.storyText = document.getElementById('story-text');
+        this.choiceButtons = [
+            document.getElementById('choice-a'),
+            document.getElementById('choice-b'),
+            document.getElementById('choice-c'),
+            document.getElementById('choice-d')
+        ];
+        this.inventoryList = document.getElementById('inventory-list');
+
+        this.choiceButtons.forEach((btn, index) => {
+            btn.addEventListener('click', () => this.makeChoice(index));
+        });
+
+        this.musicManager = new MusicManager();
+        document.addEventListener('click', () => this.musicManager.start(), { once: true });
+    }
 
     start() {
-            this.displayNode(gameState.currentNode);
-        }
+        this.displayNode(gameState.currentNode);
+    }
 
     displayNode(nodeId) {
-            const node = storyNodes[nodeId];
-            if (!node) {
-                console.error('Node not found:', nodeId);
-                return;
-            }
-
-            gameState.currentNode = nodeId;
-
-            // Display story text with typewriter effect
-            this.storyText.innerHTML = '';
-            this.typeWriter(node.text, 0);
-
-            // Display choices or hide if ending
-            if (node.choices.length === 0) {
-                this.choiceButtons.forEach(btn => btn.style.display = 'none');
-            } else {
-                node.choices.forEach((choice, index) => {
-                    if (this.choiceButtons[index]) {
-                        this.choiceButtons[index].textContent = choice.label;
-                        this.choiceButtons[index].style.display = 'block';
-                        this.choiceButtons[index].disabled = false;
-                    }
-                });
-                // Hide unused buttons
-                for (let i = node.choices.length; i < 4; i++) {
-                    this.choiceButtons[i].style.display = 'none';
-                }
-            }
-            if (!choice) return;
-
-            // Add to inventory if specified
-            if (choice.inventory && !gameState.inventory.includes(choice.inventory)) {
-                gameState.inventory.push(choice.inventory);
-            }
-
-            // Disable buttons during transition
-            this.choiceButtons.forEach(btn => btn.disabled = true);
-
-            // Navigate to next node
-            setTimeout(() => {
-                this.displayNode(choice.next);
-            }, 300);
+        const node = storyNodes[nodeId];
+        if (!node) {
+            console.error('Node not found:', nodeId);
+            return;
         }
 
-    updateInventory() {
-            if (gameState.inventory.length === 0) {
-                this.inventoryList.textContent = 'None yet';
-            } else {
-                this.inventoryList.textContent = gameState.inventory.join(', ');
+        gameState.currentNode = nodeId;
+
+        // Display story text with typewriter effect
+        this.storyText.innerHTML = '';
+        this.typeWriter(node.text, 0);
+
+        // Display choices or hide if ending
+        if (node.choices.length === 0) {
+            this.choiceButtons.forEach(btn => btn.style.display = 'none');
+        } else {
+            node.choices.forEach((choice, index) => {
+                if (this.choiceButtons[index]) {
+                    this.choiceButtons[index].textContent = choice.label;
+                    this.choiceButtons[index].style.display = 'block';
+                    this.choiceButtons[index].disabled = false;
+                }
+            });
+            for (let i = node.choices.length; i < 4; i++) {
+                this.choiceButtons[i].style.display = 'none';
             }
+        }
+
+        this.updateInventory();
+    }
+
+    typeWriter(text, index) {
+        if (index < text.length) {
+            const char = text.charAt(index);
+            if (char === '\n') {
+                this.storyText.innerHTML += '<br>';
+            } else {
+                this.storyText.innerHTML += char;
+            }
+            setTimeout(() => this.typeWriter(text, index + 1), 15);
         }
     }
 
-// --- Start Game ---
+    makeChoice(choiceIndex) {
+        const node = storyNodes[gameState.currentNode];
+        const choice = node.choices[choiceIndex];
+
+        if (!choice) return;
+
+        if (choice.inventory && !gameState.inventory.includes(choice.inventory)) {
+            gameState.inventory.push(choice.inventory);
+        }
+
+        if (choice.flag) {
+            gameState.flags[choice.flag] = true;
+        }
+
+        this.choiceButtons.forEach(btn => btn.disabled = true);
+
+        setTimeout(() => {
+            this.displayNode(choice.next);
+        }, 300);
+    }
+
+    updateInventory() {
+        if (gameState.inventory.length === 0) {
+            this.inventoryList.textContent = 'None yet';
+        } else {
+            this.inventoryList.textContent = gameState.inventory.join(', ');
+        }
+    }
+}
+
 window.addEventListener('DOMContentLoaded', () => {
-        const game = new GameEngine();
-        game.start();
-    });
+    const game = new GameEngine();
+    game.start();
+});

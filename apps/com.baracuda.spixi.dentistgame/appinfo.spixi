@@ -1,9 +1,9 @@
 id=com.baracuda.spixi.dentistgame
 name=Klara's Birthday Mystery
-version=3.0.1
+version=3.1.0
 author=baracuda
-description=A romantic mystery adventure for Klara's special day!
-keywords=game,mystery,adventure,birthday,romance
+description=A thrilling detective mystery for Klara's birthday!
+keywords=game,mystery,adventure,birthday,detective
 main=index.html
 icon=icon.png
 capabilities=singleUser
