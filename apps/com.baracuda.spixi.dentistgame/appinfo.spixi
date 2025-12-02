@@ -1,9 +1,9 @@
 id=com.baracuda.spixi.dentistgame
-name=The Case of the Missing Molar
-version=2.2.1
+name=Klara's Birthday Mystery
+version=3.0.0
 author=baracuda
-description=A vintage point-and-click mystery in a dentist's office.
-keywords=game,mystery,adventure,dentist,noir
+description=A romantic mystery adventure for Klara's special day!
+keywords=game,mystery,adventure,birthday,romance
 main=index.html
 icon=icon.png
 capabilities=singleUser
