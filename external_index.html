@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Baracuda Mini Apps</title>
+    <title>Spixi Mini Apps | Spixi</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -14,8 +14,8 @@
             theme: {
                 extend: {
                     colors: {
-                        'baracuda': '#17334F', // Kept similar dark blue
-                        'baracuda-dark': '#F0F2F4',
+                        'spixi': '#17334F',
+                        'spixi-dark': '#F0F2F4',
                         'accent': '#24BBFF'
                     },
                     fontFamily: {
@@ -45,16 +45,24 @@
     </style>
 </head>
 
-<body class="bg-gray-50 dark:bg-[#090B0D] text-baracuda dark:text-baracuda-dark font-lexend">
+<body class="bg-gray-50 dark:bg-[#090B0D] text-spixi dark:text-spixi-dark font-lexend">
     <!-- Header -->
     <header class="bg-white dark:bg-[#090B0D] border-b border-gray-200 dark:border-gray-800 py-4">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
             <div class="flex items-center">
-                <a href="#" class="flex items-center space-x-2">
-                    <!-- Replaced Image with Text for Baracuda -->
-                    <span class="text-2xl font-bold text-baracuda dark:text-white">Baracuda</span>
+                <a href="https://spixi.io" class="flex items-center space-x-2">
+                    <img src="assets/spixi-logo.svg" alt="Spixi Logo" class="h-8">
+                    <span class="text-2xl font-bold text-spixi dark:text-white">Spixi</span>
                 </a>
-               
+                <nav class="hidden md:flex ml-10 space-x-8">
+                    <a href="https://spixi.io/features"
+                        class="text-gray-600 dark:text-gray-300 hover:text-accent transition-colors">Features</a>
+                    <a href="https://spixi.io/download"
+                        class="text-gray-600 dark:text-gray-300 hover:text-accent transition-colors">Download</a>
+                    <a href="#" class="text-accent font-semibold">Mini Apps</a>
+                    <a href="https://spixi.io/blog"
+                        class="text-gray-600 dark:text-gray-300 hover:text-accent transition-colors">Blog</a>
+                </nav>
             </div>
 
             <div class="flex items-center space-x-4">
@@ -72,6 +80,33 @@
                         </path>
                     </svg>
                 </button>
+
+                <!-- Language Dropdown -->
+                <div class="relative">
+                    <button id="language-dropdown-button"
+                        class="flex items-center text-gray-600 dark:text-gray-300 hover:text-accent transition-colors focus:outline-none">
+                        <img src="assets/flag-us.svg" alt="US Flag" class="w-5 h-5 rounded-full mr-2">
+                        EN
+                        <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                            xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+                            </path>
+                        </svg>
+                    </button>
+                    <div id="language-dropdown"
+                        class="absolute right-0 mt-2 w-32 bg-white dark:bg-[#12171F] rounded-md shadow-lg py-1 z-20 hidden">
+                        <a href="#"
+                            class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <img src="assets/flag-us.svg" alt="US Flag" class="w-5 h-5 rounded-full mr-2">
+                            English
+                        </a>
+                        <a href="#"
+                            class="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <img src="assets/flag-de.svg" alt="DE Flag" class="w-5 h-5 rounded-full mr-2">
+                            Deutsch
+                        </a>
+                    </div>
+                </div>
             </div>
         </div>
     </header>
@@ -79,9 +114,9 @@
     <main>
         <!-- Hero Section -->
         <section class="py-20 text-center">
-            <h1 class="text-5xl font-bold text-baracuda dark:text-white mb-4">Baracuda Mini Apps</h1>
+            <h1 class="text-5xl font-bold text-spixi dark:text-white mb-4">Spixi Mini Apps</h1>
             <p class="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-                Discover a world of decentralized applications.
+                Discover a world of decentralized applications built on the Spixi platform.
             </p>
         </section>
 
@@ -89,21 +124,56 @@
         <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div id="app-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 <!-- Apps will be loaded here by JavaScript -->
-                <div class="col-span-full text-center text-gray-500">Loading apps...</div>
             </div>
         </section>
     </main>
 
+    <!-- Spixi Summary Section -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-32">
+        <div
+            class="bg-[radial-gradient(62.75%_223.69%_at_12.13%_-13.29%,_#97E3F9_0%,_#1394F1_100%)] dark:bg-[radial-gradient(62.75%_223.69%_at_12.13%_-13.29%,_#082444_0%,_#044E83_100%)] rounded-2xl">
+            <div class="flex flex-col md:flex-row items-center justify-between pt-5 px-10">
+                <div class="md:w-1/2 flex flex-col py-10">
+                    <h2 class="text-5xl font-lexend font-semibold text-black dark:text-white">
+                        Start using Spixi
+                    </h2>
+
+                    <div class="my-4">
+                        <p class="text-base text-black dark:text-white">
+                            Download Spixi today and experience the future of secure communication. <br>
+                            Available on Desktop and Mobile.
+                        </p>
+                    </div>
+
+                    <div class="my-4">
+                        <a href="https://spixi.io/download"
+                            class="inline-block border border-spixi dark:border-white text-black dark:text-white hover:bg-[#24BBFF] font-medium rounded-lg py-3 px-8 transition-colors">
+                            Download Now
+                        </a>
+                    </div>
+                </div>
+                <div class="md:w-1/2 flex justify-end">
+                    <img src="assets/SpixiSummaryLight.png" class="w-[432px] dark:hidden" alt="Spixi Summary Light">
+                    <img src="assets/SpixiSummaryDark.png" class="w-[432px] hidden dark:block" alt="Spixi Summary Dark">
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="bg-white dark:bg-[#090B0D] border-t border-gray-200 dark:border-gray-800 py-12">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-500 text-sm">
-            <p>&copy; 2025 Baracuda. All rights reserved.</p>
+            <p>&copy; 2025 Spixi. All rights reserved.</p>
+            <div class="mt-4 flex justify-center gap-6">
+                <a href="#" class="hover:text-accent">Privacy Policy</a>
+                <a href="#" class="hover:text-accent">Terms of Use</a>
+            </div>
         </div>
     </footer>
 
     <!-- Modal -->
     <dialog id="appModal"
-        class="backdrop:bg-black/50 backdrop:backdrop-blur-sm rounded-2xl p-6 w-[90%] max-w-md bg-white dark:bg-[#090B0D] text-baracuda dark:text-baracuda-dark shadow-2xl">
+        class="backdrop:bg-black/50 backdrop:backdrop-blur-sm rounded-2xl p-6 w-[90%] max-w-md bg-white dark:bg-[#090B0D] text-spixi dark:text-spixi-dark shadow-2xl">
         <div class="flex flex-col items-center gap-3">
             <h2 class="text-xl font-semibold mb-4">Open <span id="modalAppName" class="text-accent"></span> in Spixi
             </h2>
@@ -118,7 +188,7 @@
             </div>
 
             <button onclick="closeModal()"
-                class="mt-2 border border-accent text-baracuda dark:text-white rounded-lg px-4 py-2 hover:bg-accent hover:text-white transition-colors">
+                class="mt-2 border border-accent text-spixi dark:text-white rounded-lg px-4 py-2 hover:bg-accent hover:text-white transition-colors">
                 Close
             </button>
         </div>
@@ -158,10 +228,6 @@
             modal.close();
         }
 
-        function openApp(url) {
-            window.open(url, '_blank');
-        }
-
         // Close on backdrop click
         modal.addEventListener('click', (e) => {
             const rect = modal.getBoundingClientRect();
@@ -174,39 +240,25 @@
 
         async function loadApps() {
             try {
-                // Determine apps.json path - locally it's at root, but on GH pages it might be effectively at root if configured so.
-                // Since generates-app-list.js puts it in root, we fetch 'apps.json'.
                 const response = await fetch('apps.json');
-                if (!response.ok) throw new Error('Failed to load apps.json');
-                
                 const apps = await response.json();
                 const grid = document.getElementById('app-grid');
-
-                if (apps.length === 0) {
-                     grid.innerHTML = '<div class="col-span-full text-center text-gray-500">No apps found.</div>';
-                     return;
-                }
 
                 grid.innerHTML = apps.map(app => `
                     <div class="app-card bg-white dark:bg-[#12171F] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 flex flex-col h-full">
                         <div class="flex items-start justify-between mb-4">
-                            <div class="flex items-center justify-center w-16 h-16 rounded-xl bg-gray-100 dark:bg-gray-800 text-3xl">
-                                ${app.icon}
-                            </div>
+                            <img src="${app.icon}" alt="${app.name}" class="w-16 h-16 rounded-xl object-cover bg-gray-100 dark:bg-gray-800">
                             <span class="px-3 py-1 text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-accent rounded-full">${app.version}</span>
                         </div>
-                        <h3 class="text-xl font-bold mb-2 text-baracuda dark:text-gray-100">${app.name}</h3>
+                        <h3 class="text-xl font-bold mb-2">${app.name}</h3>
                         <p class="text-gray-600 dark:text-gray-400 text-sm mb-6 flex-grow">${app.description}</p>
                         <div class="flex gap-3 mt-auto">
-                            <button onclick="openApp('${app.url}')" class="flex-1 bg-accent hover:bg-blue-400 text-white font-medium py-2.5 px-4 rounded-xl text-center transition-colors">
+                            <button onclick="openModal('${app.name}', '${app.downloadUrl}')" class="flex-1 bg-accent hover:bg-blue-400 text-white font-medium py-2.5 px-4 rounded-xl text-center transition-colors">
                                 Try it now
                             </button>
-                            <button onclick="openModal('${app.name}', '${app.downloadUrl}')" class="px-3 py-2.5 text-gray-500 hover:text-baracuda dark:hover:text-white transition-colors border border-gray-200 dark:border-gray-700 rounded-xl" title="Get QR Code">
-                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                  <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
-                                  <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" />
-                                </svg>
-                            </button>
+                            <a href="${app.sourceUrl}" target="_blank" class="px-3 py-2.5 text-gray-500 hover:text-spixi dark:hover:text-white transition-colors" title="View Source">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+                            </a>
                         </div>
                     </div>
                 `).join('');
@@ -214,7 +266,7 @@
                 console.error('Error loading apps:', error);
                 document.getElementById('app-grid').innerHTML = `
                     <div class="col-span-full text-center py-12 text-red-500">
-                        <p>Failed to load apps. Ensure apps.json exists.</p>
+                        <p>Failed to load apps. Please try again later.</p>
                     </div>
                 `;
             }
@@ -260,6 +312,21 @@
                     document.documentElement.classList.add('dark');
                     localStorage.setItem('color-theme', 'dark');
                 }
+            }
+        });
+
+        // Language Dropdown Logic
+        const langBtn = document.getElementById('language-dropdown-button');
+        const langDropdown = document.getElementById('language-dropdown');
+
+        langBtn.addEventListener('click', () => {
+            langDropdown.classList.toggle('hidden');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!langBtn.contains(e.target) && !langDropdown.contains(e.target)) {
+                langDropdown.classList.add('hidden');
             }
         });
     </script>

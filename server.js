@@ -646,8 +646,8 @@ mainServer.listen(MAIN_PORT, () => {
     console.log(`✅ Main Server (Test Environment) running at http://localhost:${MAIN_PORT}`);
 });
 
-devServer.listen(DEV_PORT, () => {
-    console.log(`✅ Dev Server (Mini Apps) running at http://localhost:${DEV_PORT}`);
-});
+// devServer.listen(DEV_PORT, () => {
+//     console.log(`✅ Dev Server (Mini Apps) running at http://localhost:${DEV_PORT}`);
+// });
 
 console.log('Press Ctrl+C to stop the servers');

@@ -9,7 +9,6 @@
   "scripts": {
     "pack": "node pack-app.js",
     "start": "node server.js",
-    "smoke-test": "node scripts/smoke-test.js",
     "test": "mocha --recursive --exit"
   },
   "keywords": [
