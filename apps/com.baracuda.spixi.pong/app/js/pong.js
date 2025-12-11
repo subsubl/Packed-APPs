@@ -2817,6 +2817,14 @@ function setupChatUI() {
     const gameOverChatBtn = document.getElementById('gameOverChatBtn');
     if (gameOverChatBtn) gameOverChatBtn.addEventListener('click', toggleChat);
 
+    // In-Game Floating Button
+    const inGameChatBtn = document.getElementById('inGameChatBtn');
+    if (inGameChatBtn) inGameChatBtn.addEventListener('click', toggleChat);
+
+    // Popup Notification Click
+    const popup = document.getElementById('chatNotificationPopup');
+    if (popup) popup.addEventListener('click', toggleChat);
+
     // Close Chat Button
     const closeBtn = document.getElementById('closeChatBtn');
     if (closeBtn) closeBtn.addEventListener('click', toggleChat);
@@ -2890,12 +2898,28 @@ function addChatMessage(text, isMine) {
     if (!isMine && !isChatOpen) {
         checkUnreadMessages++;
         updateChatBadges();
+        showChatNotification(text);
+    }
+}
+
+function showChatNotification(text) {
+    const popup = document.getElementById('chatNotificationPopup');
+    const popupText = document.getElementById('notificationText');
+
+    if (popup && popupText) {
+        popupText.textContent = text;
+        popup.classList.remove('hidden');
+
+        // Clear previous timer if exists (optional refinement, simple timeout works for now)
+        setTimeout(() => {
+            popup.classList.add('hidden');
+        }, 3000);
     }
 }
 
 function updateChatBadges() {
     const count = checkUnreadMessages > 9 ? '9+' : checkUnreadMessages;
-    ['waitingChatBadge', 'gameOverChatBadge'].forEach(id => {
+    ['waitingChatBadge', 'gameOverChatBadge', 'inGameChatBadge'].forEach(id => {
         const badge = document.getElementById(id);
         if (badge) {
             badge.textContent = count;
@@ -2913,7 +2937,7 @@ function sendPlayerStatus(status) {
 }
 
 function updateOpponentStatusUI(status) {
-    const pill = document.getElementById('waitingOpponentStatus');
+    const pill = document.getElementById('gameOverOpponentStatus');
     // UI element might be removed, so check first
     if (pill) {
         const dot = pill.querySelector('.status-dot');

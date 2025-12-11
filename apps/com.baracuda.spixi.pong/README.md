@@ -6,7 +6,7 @@ Spixi Pong is a high-performance, real-time multiplayer arcade game built for th
 
 *   **Real-time Multiplayer**: 60fps local physics with predictive networking.
 *   **P2P Architecture**: Direct peer-to-peer connection via Spixi SDK.
-*   **Lobby Chat**: Encrypted, transient chat available pre- and post-game.
+*   **Lobby Chat**: Encrypted chat available pre/post-game and in-game via overlay. Includes popup notifications.
 *   **Adaptive Networking**: Hybrid protocol switching between high-efficiency binary (gameplay) and flexible JSON (chat/status).
 *   **Lag Compensation**: Retroactive collision detection and smooth interpolation for reliable play over cellular networks.
 
