@@ -2140,8 +2140,11 @@ function sendGameState() {
         // Ball state: Hybrid approach (event-based + adaptive-rate periodic)
         // - Events (launch/bounce/hit) for instant reactions
         // - Adaptive periodic updates: 60pps (good connection) or 25pps (degraded connection)
+        // - Also send during waitingForServe so opponent can see ball on server's paddle
         const ballActive = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
-        if (gameState.hasActiveBallAuthority && ballActive) {
+        const shouldSendBall = (gameState.hasActiveBallAuthority && ballActive) ||
+            (gameState.waitingForServe && gameState.isBallOwner);
+        if (shouldSendBall) {
             const b = gameState.ball;
 
             // Use reusable ball state object
