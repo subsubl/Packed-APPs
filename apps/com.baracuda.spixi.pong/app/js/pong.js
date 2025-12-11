@@ -212,6 +212,7 @@ const MSG_BOUNCE = 10;
 const MSG_FULL_RESET = 11;
 const MSG_EXIT = 12;
 const MSG_RESTART = 13;
+const MSG_PADDLE = 14;
 
 // Enable/disable binary protocol (for gradual rollout)
 let useBinaryProtocol = true;
@@ -238,7 +239,20 @@ function encodeStatePacket(frame, paddleY, seq, lastAck, ball) {
 }
 
 /**
- * Encode a ball event packet (launch, bounce, collision)
+ * Encode a paddle update packet (compact)
+ * Layout: [type:1][paddleY:2][seq:2] = 5 bytes
+ */
+function encodePaddlePacket(paddleY, seq) {
+    const buffer = new ArrayBuffer(5);
+    const view = new DataView(buffer);
+    view.setUint8(0, MSG_PADDLE);
+    view.setUint16(1, Math.round(paddleY) & 0xFFFF, true);
+    view.setUint16(3, seq & 0xFFFF, true);
+    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+}
+
+/**
+ * Encode a simple packet (ping, pong, connect, etc.)
  * Layout: [type:1][timestamp:4][x:2][y:2][vx:2][vy:2] = 13 bytes
  */
 function encodeBallEventPacket(type, timestamp, ball) {
@@ -296,6 +310,9 @@ function decodeBinaryPacket(base64) {
             result.ballVy = view.getInt16(11, true) / 100;
         } else if (binary.length >= 5) {
             result.data = view.getUint32(1, true);
+        } else if (type === MSG_PADDLE && binary.length >= 5) {
+            result.paddleY = view.getUint16(1, true);
+            result.seq = view.getUint16(3, true);
         }
 
         return result;
@@ -496,6 +513,7 @@ let lastDataSent = 0;
 let lastSyncTime = 0;
 let frameCounter = 0;
 let lastSentPaddleY = 0;
+let lastPaddleSendTime = 0;
 let keysPressed = {};
 let touchControlActive = null;
 let wheelVelocity = 0;
@@ -1167,6 +1185,18 @@ function updatePaddle() {
 
     // Use predicted paddle position for rendering and collision detection
     gameState.localPaddle.y = predictedPaddleY;
+
+    // Send paddle update immediately if changed (throttled to ~30fps)
+    const currentTime = Date.now();
+    if (gameState.localPaddle.y !== lastSentPaddleY && currentTime - lastPaddleSendTime > 30) {
+        if (useBinaryProtocol) {
+            inputSequence++;
+            const packet = encodePaddlePacket(gameState.localPaddle.y, inputSequence);
+            SpixiAppSdk.sendNetworkData(packet);
+            lastSentPaddleY = gameState.localPaddle.y;
+            lastPaddleSendTime = currentTime;
+        }
+    }
 
     // Update wheel handle position to match paddle
     updateWheelPosition();
@@ -2426,7 +2456,15 @@ SpixiAppSdk.onNetworkData = function (senderAddress, data) {
         // Check for binary packet first
         if (isBinaryPacket(data)) {
             const binaryMsg = decodeBinaryPacket(data);
-            if (binaryMsg && binaryMsg.type === MSG_STATE) {
+            if (!binaryMsg) return;
+
+            if (binaryMsg.type === MSG_PADDLE) {
+                // Fast Path: Paddle Update
+                remotePaddleTarget = binaryMsg.paddleY;
+                return;
+            }
+
+            if (binaryMsg.type === MSG_STATE) {
                 // Process binary state packet
                 const frame = binaryMsg.frame;
                 const paddleY = binaryMsg.paddleY;
