@@ -1103,7 +1103,8 @@ function gameLoop(timestamp) {
             const ballHasVelocity = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
 
             if (ballHasVelocity) {
-                updateBall();
+                // Pass deltaTime to updateBall for time-based physics
+                updateBall(deltaTime);
                 checkCollisions();
 
                 // Only ball owner checks score (game logic authority)
@@ -1125,7 +1126,7 @@ function gameLoop(timestamp) {
         } else {
             // We don't have authority - ALWAYS interpolate toward target
             // This ensures smooth client-side ball movement even if local velocity is 0
-            updateBallInterpolation();
+            updateBallInterpolation(deltaTime);
         }
 
         render();
@@ -1224,9 +1225,13 @@ function updateRemotePaddleInterpolation() {
     }
 }
 
-function updateBall() {
-    gameState.ball.x += gameState.ball.vx;
-    gameState.ball.y += gameState.ball.vy;
+function updateBall(dt) {
+    // Normalize dt to 60fps (approx 16.67ms)
+    // If running at 60fps, timeRatio = 1.0
+    const timeRatio = dt ? (dt / 16.67) : 1.0;
+
+    gameState.ball.x += gameState.ball.vx * timeRatio;
+    gameState.ball.y += gameState.ball.vy * timeRatio;
 
     // Top and bottom wall collision
     if (gameState.ball.y <= BALL_SIZE / 2 || gameState.ball.y >= CANVAS_HEIGHT - BALL_SIZE / 2) {
@@ -2152,9 +2157,11 @@ function sendGameState() {
                 Math.abs(lastSentBallState.vx - newBallState.vx) > 5 || // > 0.05 float diff
                 Math.abs(lastSentBallState.vy - newBallState.vy) > 5;
 
-            // Conservative ball update rate: 10pps (100ms) to stay under observed 15pps
-            // Client-side interpolation handles smoothness between updates
-            const ballUpdateInterval = 100; // 10pps
+            // BANDWIDTH OPTIMIZATION:
+            // Switch to Event-Based updates (like p2p-pong). 
+            // Only send when physics change (bounce/hit) or rare heartbeat (1s)
+            // This significantly reduces packet count.
+            const ballUpdateInterval = 1000; // 1pps heartbeat
 
             // Send ball at 10pps OR on velocity change (event)
             const timeSinceLastBallUpdate = currentTime - (lastBallUpdateTime || 0);
