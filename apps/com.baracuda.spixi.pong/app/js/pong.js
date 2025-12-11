@@ -2204,8 +2204,6 @@ function sendGameState() {
                 lastAcknowledgedSequence,
                 ball
             );
-            // DEBUG: Log outbound packet
-            // if (frameCounter % 60 === 0) console.log(`Sending: F${frameCounter} P${paddleY} B${ball ? 'YES' : 'NO'}`);
             SpixiAppSdk.sendNetworkData(binaryData);
         } else {
             // JSON fallback
@@ -2434,9 +2432,6 @@ SpixiAppSdk.onNetworkData = function (senderAddress, data) {
                 const paddleY = binaryMsg.paddleY;
                 const seq = binaryMsg.seq;
                 const lastAck = binaryMsg.lastAck;
-
-                // DEBUG: Log inbound packet
-                // if (frame % 60 === 0) console.log(`Rectv: F${frame} P${paddleY}`);
 
                 // ALWAYS update remote paddle - paddle position is stateless
                 // and doesn't need ordering guarantees like ball physics.
