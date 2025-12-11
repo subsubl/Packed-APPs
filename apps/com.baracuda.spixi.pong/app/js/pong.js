@@ -448,6 +448,7 @@ let gameState = {
     },
     isBallOwner: false, // Who controls the ball (randomly assigned at start)
     hasActiveBallAuthority: false, // Who currently simulates ball (switches on each hit)
+    pendingAuthorityTransfer: false, // Wait for update to be sent before dropping authority
     gameStarted: false,
     gameEnded: false,
     lastUpdate: 0,
@@ -1026,8 +1027,8 @@ function launchBall() {
 
         // Notify other player with ball velocity included
         const b = gameState.ball;
-        // Use synced time for launch event
-        const launchTime = timeSync.getSyncedTime();
+        // Use local time for launch event (receiver syncs to this)
+        const launchTime = Date.now();
 
         SpixiAppSdk.sendNetworkData(JSON.stringify({
             a: "launch",
@@ -1412,7 +1413,8 @@ function checkCollisions() {
         // Check if we're the one who hit it (right paddle = ball owner)
         if (gameState.isBallOwner) {
             // We hit it - OPPONENT now has authority (ball heading toward them)
-            gameState.hasActiveBallAuthority = false;
+            // Defer authority transfer until we send the update
+            gameState.pendingAuthorityTransfer = true;
             playPaddleHitSound();
         }
 
@@ -1440,7 +1442,8 @@ function checkCollisions() {
         // Check if we're the one who hit it (left paddle = non-owner)
         if (!gameState.isBallOwner) {
             // We hit it - OPPONENT now has authority (ball heading toward them)
-            gameState.hasActiveBallAuthority = false;
+            // Defer authority transfer until we send the update
+            gameState.pendingAuthorityTransfer = true;
             playPaddleHitSound();
         }
 
@@ -1895,7 +1898,7 @@ function sendBallStateWithCollision() {
 
 function sendBallEvent(type) {
     const b = gameState.ball;
-    const eventTime = timeSync.getSyncedTime();
+    const eventTime = Date.now(); // Use local time (receiver calculates delta)
 
     SpixiAppSdk.sendNetworkData(JSON.stringify({
         a: type,
@@ -2159,7 +2162,19 @@ function sendGameState() {
                 lastSentBallState = { ...newBallState };
                 state.b = newBallState;
                 lastBallUpdateTime = currentTime;
+
+                // If we were waiting to relinquish authority (after collision), do it now
+                // This ensures we sent at least one packet with the new vector
+                if (gameState.pendingAuthorityTransfer) {
+                    gameState.hasActiveBallAuthority = false;
+                    gameState.pendingAuthorityTransfer = false;
+                }
             }
+        } else if (gameState.pendingAuthorityTransfer) {
+            // Edge case: authority transfer pending but ball not active/moving?
+            // Should not happen on collision, but safety release
+            gameState.hasActiveBallAuthority = false;
+            gameState.pendingAuthorityTransfer = false;
         } else if (!ballActive) {
             // Ball stopped - clear cached state
             lastSentBallState = null;
