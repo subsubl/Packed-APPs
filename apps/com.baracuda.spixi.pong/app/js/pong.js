@@ -2435,9 +2435,14 @@ SpixiAppSdk.onNetworkData = function (senderAddress, data) {
                 const seq = binaryMsg.seq;
                 const lastAck = binaryMsg.lastAck;
 
-                // Validate frame counter
+                // ALWAYS update remote paddle - paddle position is stateless
+                // and doesn't need ordering guarantees like ball physics.
+                // This ensures smooth paddle movement even if some packets are rejected.
+                remotePaddleTarget = paddleY;
+
+                // Validate frame counter for ball/acknowledgment processing
                 if (!validateFrameCounter(frame)) {
-                    return; // Reject out-of-order packet
+                    return; // Reject out-of-order packet for ball state, but paddle already updated
                 }
 
                 // Process acknowledgment - remove confirmed inputs
@@ -2445,9 +2450,6 @@ SpixiAppSdk.onNetworkData = function (senderAddress, data) {
                     lastAcknowledgedSequence = lastAck;
                     pendingInputs = pendingInputs.filter(input => input.seq > lastAck);
                 }
-
-                // Update remote paddle target for interpolation
-                remotePaddleTarget = paddleY;
 
                 // Process ball state if present
                 if (binaryMsg.ballX > 0 || binaryMsg.ballY > 0) {
