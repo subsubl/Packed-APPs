@@ -2813,11 +2813,9 @@ SpixiAppSdk.onStorageData = function (key, value) {
 
 function setupChatUI() {
     // Chat Toggle Buttons
-    const toggleButtons = ['waitingChatBtn', 'gameOverChatBtn'];
-    toggleButtons.forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) btn.addEventListener('click', toggleChat);
-    });
+    // specific buttons only now - waiting screen chat removed
+    const gameOverChatBtn = document.getElementById('gameOverChatBtn');
+    if (gameOverChatBtn) gameOverChatBtn.addEventListener('click', toggleChat);
 
     // Close Chat Button
     const closeBtn = document.getElementById('closeChatBtn');
@@ -2839,7 +2837,7 @@ function setupChatUI() {
     const exitBtn = document.getElementById('waitingExitBtn');
     if (exitBtn) {
         exitBtn.addEventListener('click', () => {
-            SpixiAppSdk.exit();
+            SpixiAppSdk.back(); // Use proper SDK back method
         });
     }
 
