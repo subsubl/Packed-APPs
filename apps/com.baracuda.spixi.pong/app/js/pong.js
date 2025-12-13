@@ -2249,22 +2249,11 @@ function sendGameState() {
                 Math.abs(lastSentBallState.vy - newBallState.vy) > 0.1;
 
             // BANDWIDTH OPTIMIZATION:
-            // Switch to Event-Based updates (like p2p-pong). 
-            // Only send when physics change (bounce/hit) or rare heartbeat (1s)
-            // This significantly reduces packet count.
-            // const ballUpdateInterval = 1000; // 1pps heartbeat
+            // Event-Based + 5pps heartbeat for robust sync
+            // 5pps = every 12 frames (60fps / 5 = 12)
+            const needsHeartbeat = frameCounter % 12 === 0;
 
-            // Send ball at 10pps OR on velocity change (event)
-            // const timeSinceLastBallUpdate = currentTime - (lastBallUpdateTime || 0);
-
-            // EVENT-BASED ONLY: Do NOT send periodic updates.
-            // Only send if velocity Changed significantly (which logic above checks).
-            // Actually, existing logic:
-            // const velocityChanged = ...
-            // if (velocityChanged || frameCounter % 6 === 0)
-
-            // Change: Remove 'frameCounter % 6 === 0' to stop periodic updates.
-            if (velocityChanged) {
+            if (velocityChanged || needsHeartbeat) {
                 state.b = newBallState;
                 lastSentBallState = {
                     x: newBallState.x,
