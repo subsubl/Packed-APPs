@@ -258,8 +258,8 @@ function encodeBallEventPacket(type, timestamp, ball) {
     const view = new DataView(buffer);
     view.setUint8(0, type);
     view.setUint32(1, timestamp & 0xFFFFFFFF, true);
-    view.setUint16(5, Math.round(ball.x) & 0xFFFF, true);
-    view.setUint16(7, Math.round(ball.y) & 0xFFFF, true);
+    view.setInt16(5, Math.round(ball.x), true); // Use Int16 for Signed coordinates
+    view.setInt16(7, Math.round(ball.y), true);
     view.setInt16(9, Math.round(ball.vx * 100), true);
     view.setInt16(11, Math.round(ball.vy * 100), true);
     return btoa(String.fromCharCode(...new Uint8Array(buffer)));
