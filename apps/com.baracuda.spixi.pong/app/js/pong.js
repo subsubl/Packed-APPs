@@ -123,15 +123,6 @@ const PADDLE_SPEED = 8;
 const BALL_SPEED_INITIAL = 7;
 const BALL_SPEED_INCREMENT = 0.4;
 const MAX_LIVES = 3;
-const FRAME_RATE = 60; // Render at 60fps
-// Dynamic network rate variables
-let currentNetworkRate = 33; // Interval in ms
-const NETWORK_RATE_ACTIVE = 100; // 10fps baseline (hybrid rate)
-const NETWORK_RATE_IDLE = 100; // 10fps when idle
-const NETWORK_RATE_THROTTLED = 66; // 15fps when performance is poor
-
-// Network Throttle (added to base rate based on RTT)
-let networkThrottleDelay = 0;
 
 // Sound system
 let audioContext;
@@ -571,12 +562,6 @@ let gameState = {
 // Ball sync state: authority switches between players on each paddle hit
 // Each player simulates ball locally when they have authority (after hitting it)
 
-
-
-// Dead Reckoning & Error Correction Constants
-const BALL_CORRECTION_FACTOR = 0.1; // Fraction of error to correct per frame (smooth convergence)
-const BALL_SNAP_THRESHOLD = 50; // Distance in pixels to snap immediately (too far to correct)
-
 // Paddle interpolation for smooth remote paddle (60fps rendering from 10fps network data)
 let remotePaddleTarget = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2;
 const PADDLE_LERP_FACTOR = 0.25; // Slower lerp for smooth 60fps interpolation from 10fps data
@@ -584,7 +569,6 @@ const PADDLE_LERP_FACTOR = 0.25; // Slower lerp for smooth 60fps interpolation f
 // Entity interpolation state for remote paddle
 let remotePaddleLastPosition = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2; // Previous known position
 let remotePaddleLastUpdateTime = Date.now(); // Timestamp of last position update
-let remotePaddleInterpolating = false; // Whether we're currently interpolating
 
 let canvas, ctx;
 let remotePlayerAddress = '';
