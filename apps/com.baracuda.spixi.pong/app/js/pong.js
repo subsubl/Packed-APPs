@@ -228,8 +228,8 @@ function encodeStatePacket(frame, paddleY, seq, lastAck, ball) {
     view.setUint16(5, seq & 0xFFFF, true);
     view.setUint16(7, lastAck & 0xFFFF, true);
     if (ball) {
-        view.setUint16(9, Math.round(ball.x) & 0xFFFF, true);
-        view.setUint16(11, Math.round(ball.y) & 0xFFFF, true);
+        view.setInt16(9, Math.round(ball.x), true);
+        view.setInt16(11, Math.round(ball.y), true);
         view.setInt16(13, Math.round(ball.vx * 100), true);
         view.setInt16(15, Math.round(ball.vy * 100), true);
     }
@@ -250,7 +250,7 @@ function encodePaddlePacket(paddleY, seq) {
 }
 
 /**
- * Encode a simple packet (ping, pong, connect, etc.)
+ * Encode ball event (launch, bounce, collision)
  * Layout: [type:1][timestamp:4][x:2][y:2][vx:2][vy:2] = 13 bytes
  */
 function encodeBallEventPacket(type, timestamp, ball) {
@@ -359,20 +359,22 @@ function decodeBinaryPacket(base64) {
             result.paddleY = view.getUint16(3, true);
             result.seq = view.getUint16(5, true);
             result.lastAck = view.getUint16(7, true);
-            result.ballX = view.getUint16(9, true);
-            result.ballY = view.getUint16(11, true);
+            result.ballX = view.getInt16(9, true);
+            result.ballY = view.getInt16(11, true);
             result.ballVx = view.getInt16(13, true) / 100;
             result.ballVy = view.getInt16(15, true) / 100;
+            result.isDecodedBinary = true;
         } else if ((type === MSG_PING || type === MSG_PONG) && binary.length >= 9) {
             result.t = view.getUint32(1, true);
             result.origT = view.getUint32(5, true);
         } else if ((type === MSG_LAUNCH || type === MSG_BOUNCE || type === MSG_COLLISION) && binary.length >= 13) {
             // Launch/Bounce/Collision
             result.timestamp = view.getUint32(1, true); // Event time
-            result.ballX = view.getUint16(5, true);
-            result.ballY = view.getUint16(7, true);
+            result.ballX = view.getInt16(5, true);
+            result.ballY = view.getInt16(7, true);
             result.ballVx = view.getInt16(9, true) / 100;
             result.ballVy = view.getInt16(11, true) / 100;
+            result.isDecodedBinary = true;
         } else if (type === MSG_PADDLE && binary.length >= 5) {
             result.paddleY = view.getUint16(1, true);
             result.seq = view.getUint16(3, true);
@@ -2563,7 +2565,8 @@ SpixiAppSdk.onNetworkData = function (senderAddress, data) {
                         // Fix for jitter: Compensate for latency!
                         // The state packet was sent 'rtt/2' ms ago.
                         // We must use SYNCED time (remote clock) because handleBallEvent compares against getSyncedTime().
-                        t: timeSync.getSyncedTime() - ((timeSync.rtt || 50) / 2)
+                        t: timeSync.getSyncedTime() - ((timeSync.rtt || 50) / 2),
+                        isDecodedBinary: true
                     };
                     handleBallEvent(ballMsg);
                 }
