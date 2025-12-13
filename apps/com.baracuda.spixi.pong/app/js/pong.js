@@ -209,6 +209,8 @@ const MSG_FULL_RESET = 11;
 const MSG_EXIT = 12;
 const MSG_RESTART = 13;
 const MSG_PADDLE = 14;
+const MSG_CHAT = 15;
+const MSG_STATUS = 16;
 
 // Binary protocol enabled permanently for State/Paddle updates
 
