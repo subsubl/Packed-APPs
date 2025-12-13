@@ -2310,7 +2310,15 @@ function sendGameState() {
 
             // Send ball at 10pps OR on velocity change (event)
             // const timeSinceLastBallUpdate = currentTime - (lastBallUpdateTime || 0);
-            if (velocityChanged || frameCounter % 6 === 0) { // Send at least every 6 frames (~10pps)
+
+            // EVENT-BASED ONLY: Do NOT send periodic updates.
+            // Only send if velocity Changed significantly (which logic above checks).
+            // Actually, existing logic:
+            // const velocityChanged = ...
+            // if (velocityChanged || frameCounter % 6 === 0)
+
+            // Change: Remove 'frameCounter % 6 === 0' to stop periodic updates.
+            if (velocityChanged) {
                 state.b = newBallState;
                 lastSentBallState = {
                     x: newBallState.x,
