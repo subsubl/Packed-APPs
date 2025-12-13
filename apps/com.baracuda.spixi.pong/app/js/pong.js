@@ -369,7 +369,7 @@ function decodeBinaryPacket(base64) {
             result.origT = view.getUint32(5, true);
         } else if ((type === MSG_LAUNCH || type === MSG_BOUNCE || type === MSG_COLLISION) && binary.length >= 13) {
             // Launch/Bounce/Collision
-            result.timestamp = view.getUint32(1, true); // Event time
+            result.t = view.getUint32(1, true); // Map timestamp to 't' for handleBallEvent!
             result.ballX = view.getInt16(5, true);
             result.ballY = view.getInt16(7, true);
             result.ballVx = view.getInt16(9, true) / 100;
