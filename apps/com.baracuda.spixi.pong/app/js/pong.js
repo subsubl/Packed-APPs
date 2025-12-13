@@ -1152,8 +1152,9 @@ function gameLoop(timestamp) {
                 updateBall(deltaTime);
                 checkCollisions();
 
-                // Only ball owner checks score (game logic authority)
-                if (gameState.isBallOwner) {
+                // Any player with ball authority checks score
+                // This enables both host AND client to detect missed balls instantly
+                if (gameState.hasActiveBallAuthority) {
                     checkScore();
                 }
             } else if (gameState.waitingForServe) {
