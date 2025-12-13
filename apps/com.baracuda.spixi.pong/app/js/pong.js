@@ -1241,9 +1241,11 @@ function gameLoop(timestamp) {
         const timeSinceLastSync = currentTime - lastSyncTime;
 
         // Send unified game state
-        // Event-Based: Call every frame, function triggers send only on changes
-        sendGameState();
-        lastSyncTime = currentTime;
+        // Throttled to 20pps (50ms) to prevent high-refresh monitors from flooding network
+        if (timeSinceLastSync >= 50) {
+            sendGameState();
+            lastSyncTime = currentTime;
+        }
     } catch (e) {
         console.error("Error in game loop:", e);
         // Force restart the loop even if ID exists (it might be stale/broken)
