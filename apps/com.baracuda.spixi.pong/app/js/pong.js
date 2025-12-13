@@ -1195,10 +1195,7 @@ function gameLoop(timestamp) {
         // Save state snapshot for potential rollback
         saveStateSnapshot();
 
-        // Debug logging every 60 frames (1 second)
-        if (frameCounter % 60 === 0) {
-            console.log(`GameLoop alive: frame=${frameCounter}, ball=(${gameState.ball.x.toFixed(1)},${gameState.ball.y.toFixed(1)}), v=(${gameState.ball.vx.toFixed(2)},${gameState.ball.vy.toFixed(2)}), auth=${gameState.hasActiveBallAuthority}, owner=${gameState.isBallOwner}`);
-        }
+
 
         updatePaddle();
 
@@ -1242,10 +1239,10 @@ function gameLoop(timestamp) {
         const currentTime = Date.now();
         const timeSinceLastSync = currentTime - lastSyncTime;
 
-        if (timeSinceLastSync >= currentNetworkRate) {
-            sendGameState();
-            lastSyncTime = currentTime;
-        }
+        // Send unified game state
+        // Event-Based: Call every frame, function triggers send only on changes
+        sendGameState();
+        lastSyncTime = currentTime;
     } catch (e) {
         console.error("Error in game loop:", e);
         // Force restart the loop even if ID exists (it might be stale/broken)
