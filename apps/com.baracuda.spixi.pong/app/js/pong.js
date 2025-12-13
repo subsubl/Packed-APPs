@@ -1091,9 +1091,9 @@ function launchBall() {
         const launchTime = Date.now();
 
         SpixiAppSdk.sendNetworkData(encodeBallEventPacket(MSG_LAUNCH, launchTime, {
-            x: Math.round(CANVAS_WIDTH - b.x),
+            x: Math.round(b.x), // No mirroring
             y: Math.round(b.y),
-            vx: -b.vx, // encoder handles scaling
+            vx: b.vx,
             vy: b.vy
         }));
         lastDataSent = SpixiTools.getTimestamp();
@@ -1602,9 +1602,9 @@ function resetBall(autoLaunch = true) {
         const launchTime = timeSync.getSyncedTime();
 
         SpixiAppSdk.sendNetworkData(encodeBallEventPacket(MSG_LAUNCH, launchTime, {
-            x: Math.round(CANVAS_WIDTH - b.x),
+            x: Math.round(b.x), // No mirroring
             y: Math.round(b.y),
-            vx: -b.vx,
+            vx: b.vx,
             vy: b.vy
         }));
         lastDataSent = SpixiTools.getTimestamp();
@@ -1987,9 +1987,9 @@ function sendBallStateWithCollision() {
 
     // Use specialized Collision packet type
     SpixiAppSdk.sendNetworkData(encodeBallEventPacket(MSG_COLLISION, Date.now(), {
-        x: Math.round(CANVAS_WIDTH - b.x),
+        x: Math.round(b.x), // No mirroring
         y: Math.round(b.y),
-        vx: -b.vx, // Pass raw float (encodeBallEventPacket does *100)
+        vx: b.vx,
         vy: b.vy
     }));
 }
@@ -2001,9 +2001,9 @@ function sendBallEvent(type) {
     // Convert type string to ID
     const typeId = type === "bounce" ? MSG_BOUNCE : MSG_LAUNCH;
     SpixiAppSdk.sendNetworkData(encodeBallEventPacket(typeId, eventTime, {
-        x: Math.round(CANVAS_WIDTH - b.x),
+        x: Math.round(b.x), // No mirroring
         y: Math.round(b.y),
-        vx: -b.vx, // Pass raw float (encodeBallEventPacket does *100)
+        vx: b.vx,
         vy: b.vy
     }));
     lastDataSent = SpixiTools.getTimestamp();
@@ -2014,10 +2014,10 @@ function handleBallEvent(msg) {
     let cookedX, cookedY, cookedVx, cookedVy;
 
     if (msg.isDecodedBinary) {
-        // Already processed floats
-        cookedX = CANVAS_WIDTH - msg.ballX;
+        // Already processed floats. No mirroring.
+        cookedX = msg.ballX;
         cookedY = msg.ballY;
-        cookedVx = -msg.ballVx; // Mirror X velocity
+        cookedVx = msg.ballVx;
         cookedVy = msg.ballVy;
     } else {
         // Fallback or non-decoded input
@@ -2026,15 +2026,15 @@ function handleBallEvent(msg) {
         const vx = msg.ballVx !== undefined ? msg.ballVx : (msg.b ? msg.b.vx : msg.vx);
         const vy = msg.ballVy !== undefined ? msg.ballVy : (msg.b ? msg.b.vy : msg.vy);
 
-        cookedX = CANVAS_WIDTH - x;
+        cookedX = x;
         cookedY = y;
 
         // Check if velocities need scaling (heuristic)
         if (Math.abs(vx) > 50) {
-            cookedVx = -(vx / 100);
+            cookedVx = vx / 100;
             cookedVy = vy / 100;
         } else {
-            cookedVx = -vx;
+            cookedVx = vx;
             cookedVy = vy;
         }
     }
@@ -2253,16 +2253,15 @@ function sendGameState() {
         // - Also send during waitingForServe so opponent can see ball on server's paddle
         const ballActive = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
         const shouldSendBall = (gameState.hasActiveBallAuthority && ballActive) ||
-            (gameState.waitingForServe && gameState.isBallOwner);
+            (gameState.waitingForServe && gameState.isServer);
         if (shouldSendBall) {
             const b = gameState.ball;
 
             // Use reusable ball state object
-            // Fix: Do NOT scale by 100 here. encodeStatePacket does the scaling.
-            // Also do NOT round to Int here, allow encodeStatePacket to handle precision.
-            reusableBallState.x = CANVAS_WIDTH - b.x; // Mirror X
+            // Fix: No mirroring. Shared coordinate space.
+            reusableBallState.x = b.x;
             reusableBallState.y = b.y;
-            reusableBallState.vx = -b.vx; // Mirror Vx
+            reusableBallState.vx = b.vx;
             reusableBallState.vy = b.vy;
 
             const newBallState = reusableBallState;
