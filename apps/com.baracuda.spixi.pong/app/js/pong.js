@@ -1333,6 +1333,15 @@ function updateBallInterpolation() {
             playWallBounceSound();
         }
 
+        // X boundary safety: If ball goes way off-screen, stop simulating until server corrects
+        // This prevents ball from flying forever on client if scoring message is lost
+        if (gameState.ball.x < -100 || gameState.ball.x > CANVAS_WIDTH + 100) {
+            // Ball is way out of bounds - something is wrong
+            // Stop local velocity; wait for server authority to fix via reset
+            gameState.ball.vx = 0;
+            gameState.ball.vy = 0;
+        }
+
         // 2. Apply Soft Error Correction (Convergence)
         // We gently push the ball by a fraction of the known error vector each frame.
         if (Math.abs(gameState.ballCorrection.x) > 0.1 || Math.abs(gameState.ballCorrection.y) > 0.1) {
