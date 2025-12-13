@@ -2554,20 +2554,11 @@ SpixiAppSdk.onNetworkData = function (senderAddress, data) {
                 }
 
                 // Process ball state if present
-                if (binaryMsg.ballX > 0 || binaryMsg.ballY > 0) {
-                    const ballMsg = {
-                        b: {
-                            x: binaryMsg.ballX,
-                            y: binaryMsg.ballY,
-                            vx: Math.round(binaryMsg.ballVx * 100),
-                            vy: Math.round(binaryMsg.ballVy * 100)
-                        },
-                        // Legacy behavior: No latency compensation for State updates.
-                        // This forces dt = 0 in handleBallEvent (snaps to position).
-                        // This avoids jitter from time sync fluctuations.
-                        isDecodedBinary: true
-                    };
-                    handleBallEvent(ballMsg);
+                if (binaryMsg.ballX !== 0 || binaryMsg.ballY !== 0) {
+                    // Use binary message directly.
+                    // It has {ballX, ballY, ballVx, ballVy} as expected by handleBallEvent's binary path.
+                    // It has NO 't' property, so handleBallEvent will use current time (dt=0), ensuring snap.
+                    handleBallEvent(binaryMsg);
                 }
 
                 return; // Binary packet fully processed
