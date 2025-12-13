@@ -1642,8 +1642,8 @@ function resetBall(autoLaunch = true) {
         SpixiAppSdk.sendNetworkData(encodeBallEventPacket(MSG_LAUNCH, launchTime, {
             x: Math.round(CANVAS_WIDTH - b.x),
             y: Math.round(b.y),
-            vx: Math.round(-b.vx * 100),
-            vy: Math.round(b.vy * 100)
+            vx: -b.vx, // Pass raw float
+            vy: b.vy
         }));
         lastDataSent = SpixiTools.getTimestamp();
     } else {
@@ -2014,13 +2014,12 @@ function sendBallStateWithCollision() {
         vy: Math.round(b.vy * 100)
     };
 
-    // Use specialized Collision packet type if we had one, but reuse BallEvent for simplicity
-    // Actually, MSG_COLLISION is distinct
+    // Use specialized Collision packet type
     SpixiAppSdk.sendNetworkData(encodeBallEventPacket(MSG_COLLISION, Date.now(), {
         x: Math.round(CANVAS_WIDTH - b.x),
         y: Math.round(b.y),
-        vx: Math.round(-b.vx * 100),
-        vy: Math.round(b.vy * 100)
+        vx: -b.vx, // Pass raw float (encodeBallEventPacket does *100)
+        vy: b.vy
     }));
 }
 
@@ -2033,8 +2032,8 @@ function sendBallEvent(type) {
     SpixiAppSdk.sendNetworkData(encodeBallEventPacket(typeId, eventTime, {
         x: Math.round(CANVAS_WIDTH - b.x),
         y: Math.round(b.y),
-        vx: Math.round(-b.vx * 100),
-        vy: Math.round(b.vy * 100)
+        vx: -b.vx, // Pass raw float (encodeBallEventPacket does *100)
+        vy: b.vy
     }));
     lastDataSent = SpixiTools.getTimestamp();
 }
