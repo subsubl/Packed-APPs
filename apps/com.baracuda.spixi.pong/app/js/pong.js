@@ -598,6 +598,7 @@ let remotePlayerAddress = '';
 let sessionId = '';
 let playerLastSeen = 0;
 let lastDataSent = 0;
+let lastWakeUpSent = 0;
 let lastSyncTime = 0;
 let frameCounter = 0;
 let lastSentPaddleY = 0;
@@ -2544,8 +2545,11 @@ SpixiAppSdk.onNetworkData = function (senderAddress, data) {
             if (binaryMsg.type === MSG_STATE) {
                 // If we receive state but aren't connected, we might have missed the handshake.
                 // Aggressively send CONNECT to prompt the other side to reply.
-                if (!connectionEstablished) {
+                // THROTTLED: Only send once per second to avoid packet storm.
+                const now = Date.now();
+                if (!connectionEstablished && now - lastWakeUpSent > 1000) {
                     SpixiAppSdk.sendNetworkData(encodeConnectPacket(sessionId, myRandomNumber));
+                    lastWakeUpSent = now;
                 }
 
                 // Process binary state packet
