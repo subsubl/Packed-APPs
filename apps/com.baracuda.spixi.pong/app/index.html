@@ -58,11 +58,7 @@
                         <span class="btn-text">Exit</span>
                     </button>
                 </div>
-                <!-- Opponent Status Indicator -->
-                <div class="opponent-status-pill hidden" id="waitingOpponentStatus">
-                    <span class="status-dot"></span>
-                    <span class="status-text">Opponent is in Lobby</span>
-                </div>
+
             </div>
         </div>
 
@@ -156,6 +152,12 @@
                     </div>
                     <div class="wheel-label">Drag to Control</div>
                 </div>
+                <!-- In-Game Controls -->
+                <button id="inGameChatBtn" class="btn btn-secondary btn-icon-only floating-chat-btn"
+                    aria-label="Open Chat">
+                    <span class="btn-icon">💬</span>
+                    <div id="inGameChatBadge" class="chat-badge hidden"></div>
+                </button>
             </div>
         </div>
 
@@ -177,6 +179,13 @@
                         <span class="stat-value" id="gameDuration">2:34</span>
                     </div>
                 </div>
+
+                <!-- Turn Status / Opponent Status -->
+                <div class="opponent-status-pill hidden" id="gameOverOpponentStatus">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Opponent is in Lobby</span>
+                </div>
+
                 <button id="restartBtn" class="btn btn-primary btn-large">
                     <span class="btn-icon">🎮</span>
                     <span class="btn-text">Play Again</span>
@@ -187,6 +196,24 @@
                     <div id="gameOverChatBadge" class="chat-badge hidden"></div>
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- Chat Notification Popup -->
+    <div id="chatNotificationPopup" class="chat-notification hidden">
+        <div class="notification-icon">💬</div>
+        <div class="notification-content">
+            <div class="notification-title">New Message</div>
+            <div class="notification-text" id="notificationText"></div>
+        </div>
+    </div>
+
+    <!-- Chat Notification Popup -->
+    <div id="chatNotificationPopup" class="chat-notification hidden">
+        <div class="notification-icon">💬</div>
+        <div class="notification-content">
+            <div class="notification-title">New Message</div>
+            <div class="notification-text" id="notificationText"></div>
         </div>
     </div>
 

@@ -589,8 +589,8 @@ let remotePlayerStatus = 'unknown'; // 'unknown', 'lobby', 'ready', 'playing'
 // Critical message retransmission
 let criticalMsgSeq = 0;
 const pendingCritical = new Map(); // seqId -> { msg, sentAt, retries }
-const CRITICAL_RETRY_INTERVAL = 300; // Retry after 300ms
-const CRITICAL_MAX_RETRIES = 3;
+const CRITICAL_RETRY_INTERVAL = 1000; // Retry after 1 second (User requested optimization)
+const CRITICAL_MAX_RETRIES = 5; // Increased retries since interval is longer
 
 function queueMessage(msg) {
     pendingMessages.push(msg);
@@ -773,6 +773,17 @@ function handleConnectionEstablished() {
                 handleOpponentDisconnect();
             }
         }, 10000);
+    }
+
+    // Start critical message retransmission loop (1Hz)
+    if (!connectionRetryInterval) {
+        // Re-using a variable name or creating new? Let's use a new one or attach to existing flow.
+        // Actually, connectionRetryInterval is cleared above. Let's use a specific one.
+        // But wait, I need to declare it globally first if I want to clear it?
+        // Let's just use a recurring check in 'pingInterval' which is already running?
+        // Ping runs every 2s. User wants 1s.
+        // Let's add specific interval.
+        setInterval(checkCriticalRetransmissions, 1000);
     }
 
     // Transition to game screen
@@ -2817,6 +2828,14 @@ function setupChatUI() {
     const gameOverChatBtn = document.getElementById('gameOverChatBtn');
     if (gameOverChatBtn) gameOverChatBtn.addEventListener('click', toggleChat);
 
+    // In-Game Floating Button
+    const inGameChatBtn = document.getElementById('inGameChatBtn');
+    if (inGameChatBtn) inGameChatBtn.addEventListener('click', toggleChat);
+
+    // Popup Notification Click
+    const popup = document.getElementById('chatNotificationPopup');
+    if (popup) popup.addEventListener('click', toggleChat);
+
     // Close Chat Button
     const closeBtn = document.getElementById('closeChatBtn');
     if (closeBtn) closeBtn.addEventListener('click', toggleChat);
@@ -2849,6 +2868,7 @@ function toggleChat() {
     const chatPanel = document.getElementById('chat-panel');
     const waitingBadge = document.getElementById('waitingChatBadge');
     const gameOverBadge = document.getElementById('gameOverChatBadge');
+    const inGameBadge = document.getElementById('inGameChatBadge');
 
     isChatOpen = !isChatOpen;
 
@@ -2857,11 +2877,14 @@ function toggleChat() {
         checkUnreadMessages = 0;
         waitingBadge.classList.add('hidden');
         gameOverBadge.classList.add('hidden');
+        if (inGameBadge) inGameBadge.classList.add('hidden');
         setTimeout(() => document.getElementById('chatInput').focus(), 300);
     } else {
         chatPanel.classList.add('chat-hidden');
     }
 }
+
+let chatPopupTimer = null;
 
 function sendChatMessage() {
     const input = document.getElementById('chatInput');
@@ -2890,12 +2913,31 @@ function addChatMessage(text, isMine) {
     if (!isMine && !isChatOpen) {
         checkUnreadMessages++;
         updateChatBadges();
+        showChatNotification(text);
+    }
+}
+
+function showChatNotification(text) {
+    const popup = document.getElementById('chatNotificationPopup');
+    const popupText = document.getElementById('notificationText');
+
+    if (popup && popupText) {
+        popupText.textContent = text;
+        popup.classList.remove('hidden');
+
+        // Clear previous timer if exists to prevent early closing
+        if (chatPopupTimer) clearTimeout(chatPopupTimer);
+
+        chatPopupTimer = setTimeout(() => {
+            popup.classList.add('hidden');
+            chatPopupTimer = null;
+        }, 3000);
     }
 }
 
 function updateChatBadges() {
     const count = checkUnreadMessages > 9 ? '9+' : checkUnreadMessages;
-    ['waitingChatBadge', 'gameOverChatBadge'].forEach(id => {
+    ['waitingChatBadge', 'gameOverChatBadge', 'inGameChatBadge'].forEach(id => {
         const badge = document.getElementById(id);
         if (badge) {
             badge.textContent = count;
@@ -2913,11 +2955,12 @@ function sendPlayerStatus(status) {
 }
 
 function updateOpponentStatusUI(status) {
-    const pill = document.getElementById('waitingOpponentStatus');
-    const dot = pill.querySelector('.status-dot');
-    const text = pill.querySelector('.status-text');
-
+    const pill = document.getElementById('gameOverOpponentStatus');
+    // UI element might be removed, so check first
     if (pill) {
+        const dot = pill.querySelector('.status-dot');
+        const text = pill.querySelector('.status-text');
+
         pill.classList.remove('hidden');
         remotePlayerStatus = status;
 
@@ -2931,6 +2974,9 @@ function updateOpponentStatusUI(status) {
             dot.classList.remove('ready');
             text.textContent = "Opponent Status Unknown";
         }
+    } else {
+        // Just track state internally if UI is gone
+        remotePlayerStatus = status;
     }
 }
 
