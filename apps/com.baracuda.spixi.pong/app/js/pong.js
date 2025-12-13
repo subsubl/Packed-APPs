@@ -1109,15 +1109,12 @@ function gameLoop(timestamp) {
         }
 
         // Schedule next frame immediately
-        // Use setTimeout to break the call stack and allow other events to process
-        // Also guard against multiple loops
-        if (gameLoopId) {
-            cancelAnimationFrame(gameLoopId);
-        }
-
+        // Use setTimeout to allow stack to clear
         setTimeout(() => {
             if (gameState.gameStarted && !gameState.gameEnded) {
                 gameLoopId = requestAnimationFrame(gameLoop);
+            } else {
+                gameLoopId = null;
             }
         }, 0);
 
