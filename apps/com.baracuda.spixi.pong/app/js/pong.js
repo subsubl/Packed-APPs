@@ -669,6 +669,183 @@ let remotePlayerStatus = 'unknown'; // 'unknown', 'lobby', 'ready', 'playing'
 const STATE_HISTORY_SIZE = 30; // ~500ms at 60fps
 let stateHistory = [];
 
+// ===== SMOOTHNESS IMPROVEMENTS =====
+// Display states (smoothed for rendering, separate from logic states)
+let displayPaddle = {
+    local: { y: CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2 },
+    remote: { y: CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2 }
+};
+
+let displayBall = {
+    x: CANVAS_WIDTH / 2,
+    y: CANVAS_HEIGHT / 2
+};
+
+// Smoothing factors
+const DISPLAY_SMOOTH_FACTOR = 0.3; // How fast display catches up to logic
+const DISPLAY_SMOOTH_FACTOR_FAST = 0.5; // For local paddle (more responsive)
+
+// Interpolation buffer for remote paddle (guarantees smooth movement)
+const INTERP_BUFFER_DELAY = 100; // ms behind "real" time for smooth interpolation
+const remotePaddleBuffer = []; // Array of {time, y, velocity}
+const MAX_BUFFER_SIZE = 10; // Keep last 10 updates (~500ms at 20pps)
+
+// Ball extrapolation for client
+let lastBallUpdate = {
+    time: 0,
+    x: CANVAS_WIDTH / 2,
+    y: CANVAS_HEIGHT / 2,
+    vx: 0,
+    vy: 0
+};
+
+// Ball trail for visual polish
+const TRAIL_LENGTH = 5;
+const ballTrail = []; // Array of {x, y}
+
+// Paddle hit flash effect
+let paddleHitFlash = {
+    local: 0,  // Flash intensity (0-1)
+    remote: 0
+};
+const HIT_FLASH_DECAY = 0.15; // How fast flash fades per frame
+
+// Screen shake effect
+let screenShake = { x: 0, y: 0, intensity: 0 };
+const SHAKE_DECAY = 0.8;
+
+// Score animation
+let scoreAnimation = {
+    local: { scale: 1 },
+    remote: { scale: 1 }
+};
+
+/**
+ * Adaptive lerp that slows down for large corrections
+ * Prevents jarring visual snaps during network hiccups
+ */
+function adaptiveLerp(current, target, baseFactor, threshold = 50) {
+    const distance = Math.abs(target - current);
+
+    // Large gap = slow correction, small gap = fast correction
+    let factor;
+    if (distance > threshold * 2) {
+        factor = baseFactor * 0.3; // Very slow for huge corrections
+    } else if (distance > threshold) {
+        factor = baseFactor * 0.6; // Slower for large corrections
+    } else {
+        factor = baseFactor; // Normal speed for small corrections
+    }
+
+    return current + (target - current) * factor;
+}
+
+/**
+ * Update display states to smoothly follow logic states
+ * Called every frame before render()
+ */
+function updateDisplayStates(deltaFactor) {
+    const smoothLocal = 1 - Math.pow(1 - DISPLAY_SMOOTH_FACTOR_FAST, deltaFactor);
+    const smoothRemote = 1 - Math.pow(1 - DISPLAY_SMOOTH_FACTOR, deltaFactor);
+
+    // Local paddle - fast, player expects immediate response
+    displayPaddle.local.y = adaptiveLerp(displayPaddle.local.y, gameState.localPaddle.y, smoothLocal, 20);
+
+    // Remote paddle - adaptive smoothing
+    displayPaddle.remote.y = adaptiveLerp(displayPaddle.remote.y, gameState.remotePaddle.y, smoothRemote, 40);
+
+    // Ball - adaptive smoothing (more forgiving threshold)
+    displayBall.x = adaptiveLerp(displayBall.x, gameState.ball.x, smoothRemote, 30);
+    displayBall.y = adaptiveLerp(displayBall.y, gameState.ball.y, smoothRemote, 30);
+}
+
+/**
+ * Add paddle position to interpolation buffer
+ */
+function addToRemotePaddleBuffer(paddleY) {
+    const now = Date.now();
+
+    // Calculate velocity from last update
+    let velocity = 0;
+    if (remotePaddleBuffer.length > 0) {
+        const last = remotePaddleBuffer[remotePaddleBuffer.length - 1];
+        const dt = (now - last.time) / 1000;
+        if (dt > 0 && dt < 1) { // Ignore if > 1 second gap
+            velocity = (paddleY - last.y) / dt;
+        }
+    }
+
+    remotePaddleBuffer.push({ time: now, y: paddleY, velocity });
+
+    // Keep buffer size limited
+    while (remotePaddleBuffer.length > MAX_BUFFER_SIZE) {
+        remotePaddleBuffer.shift();
+    }
+}
+
+/**
+ * Update ball trail for visual effect
+ */
+function updateBallTrail() {
+    // Add current position to trail
+    ballTrail.push({ x: displayBall.x, y: displayBall.y });
+
+    // Keep trail limited
+    while (ballTrail.length > TRAIL_LENGTH) {
+        ballTrail.shift();
+    }
+}
+
+/**
+ * Update hit flash decay
+ */
+function updateHitFlash() {
+    paddleHitFlash.local = Math.max(0, paddleHitFlash.local - HIT_FLASH_DECAY);
+    paddleHitFlash.remote = Math.max(0, paddleHitFlash.remote - HIT_FLASH_DECAY);
+}
+
+/**
+ * Trigger screen shake effect
+ */
+function triggerScreenShake(intensity = 5) {
+    screenShake.intensity = intensity;
+}
+
+/**
+ * Update screen shake
+ */
+function updateScreenShake() {
+    if (screenShake.intensity > 0.1) {
+        screenShake.x = (Math.random() - 0.5) * screenShake.intensity * 2;
+        screenShake.y = (Math.random() - 0.5) * screenShake.intensity * 2;
+        screenShake.intensity *= SHAKE_DECAY;
+    } else {
+        screenShake.x = 0;
+        screenShake.y = 0;
+        screenShake.intensity = 0;
+    }
+}
+
+/**
+ * Update score animation
+ */
+function updateScoreAnimation() {
+    scoreAnimation.local.scale += (1 - scoreAnimation.local.scale) * 0.2;
+    scoreAnimation.remote.scale += (1 - scoreAnimation.remote.scale) * 0.2;
+}
+
+/**
+ * Trigger score pop animation
+ */
+function animateScoreChange(isLocal) {
+    if (isLocal) {
+        scoreAnimation.local.scale = 1.5;
+    } else {
+        scoreAnimation.remote.scale = 1.5;
+    }
+}
+
+
 /**
  * Save a snapshot of the current game state for potential rollback
  * Called at the start of each game frame
@@ -1131,9 +1308,11 @@ function gameLoop(timestamp) {
             }
         }, 0);
 
-        // Calculate frame delta
+        // Calculate frame delta (capped to prevent huge jumps)
         if (!lastFrameTime) lastFrameTime = timestamp;
-        const deltaTime = timestamp - lastFrameTime;
+        const rawDeltaTime = timestamp - lastFrameTime;
+        const deltaTime = Math.min(rawDeltaTime, 50); // Cap at 50ms (20fps minimum)
+        const deltaFactor = deltaTime / 16.67; // Normalized to 60fps
         lastFrameTime = timestamp;
 
         frameCounter++;
@@ -1163,8 +1342,33 @@ function gameLoop(timestamp) {
                 gameState.ball.x = CANVAS_WIDTH - 20 - PADDLE_WIDTH - BALL_SIZE;
                 gameState.ball.y = gameState.localPaddle.y + PADDLE_HEIGHT / 2;
             }
+        } else {
+            // CLIENT: Extrapolate ball position between network updates for smoothness
+            const timeSinceUpdate = (Date.now() - lastBallUpdate.time) / 1000;
+
+            // Only extrapolate for short durations (< 200ms)
+            if (timeSinceUpdate < 0.2 && lastBallUpdate.time > 0 && (Math.abs(lastBallUpdate.vx) > 0.1 || Math.abs(lastBallUpdate.vy) > 0.1)) {
+                // Apply velocity to get predicted position
+                gameState.ball.x = lastBallUpdate.x + lastBallUpdate.vx * timeSinceUpdate * 60;
+                gameState.ball.y = lastBallUpdate.y + lastBallUpdate.vy * timeSinceUpdate * 60;
+
+                // Handle wall bounces locally for smoother visuals
+                if (gameState.ball.y <= BALL_SIZE / 2) {
+                    gameState.ball.y = BALL_SIZE / 2;
+                    lastBallUpdate.vy = Math.abs(lastBallUpdate.vy);
+                } else if (gameState.ball.y >= CANVAS_HEIGHT - BALL_SIZE / 2) {
+                    gameState.ball.y = CANVAS_HEIGHT - BALL_SIZE / 2;
+                    lastBallUpdate.vy = -Math.abs(lastBallUpdate.vy);
+                }
+            }
         }
-        // CLIENT: No ball simulation - just render what host sends
+
+        // Update all smoothness effects
+        updateDisplayStates(deltaFactor);
+        updateBallTrail();
+        updateHitFlash();
+        updateScreenShake();
+        updateScoreAnimation();
 
         render();
 
@@ -1241,37 +1445,62 @@ function updateWheelPosition() {
 }
 
 /**
- * Entity interpolation for remote paddle: Smooth movement between known positions
+ * Entity interpolation using buffered positions
+ * Interpolates between two known past positions for guaranteed smooth movement
  * 
- * The server sends paddle updates at 10fps, but we render at 60fps.
- * Instead of showing jumpy movement, we interpolate between the last known position
- * and the current target position using linear interpolation (lerp).
- * 
- * This technique is essential for smooth gameplay when network updates arrive infrequently.
- * The lerp factor determines how quickly we reach the target position.
+ * Instead of lerping to the latest position (which can jitter),
+ * we render slightly behind real-time and interpolate between known positions.
  */
 function updateRemotePaddleInterpolation() {
-    const currentTime = Date.now();
-
-    // If we have a new target, update interpolation state
-    if (remotePaddleTarget !== gameState.remotePaddle.y) {
-        remotePaddleInterpolating = true;
-        remotePaddleLastPosition = gameState.remotePaddle.y;
-        remotePaddleLastUpdateTime = currentTime;
+    if (remotePaddleBuffer.length < 2) {
+        // Not enough data - use simple lerp fallback
+        if (remotePaddleBuffer.length === 1) {
+            gameState.remotePaddle.y += (remotePaddleBuffer[0].y - gameState.remotePaddle.y) * PADDLE_LERP_FACTOR;
+        } else if (remotePaddleTarget !== gameState.remotePaddle.y) {
+            // Legacy fallback if buffer not yet populated
+            gameState.remotePaddle.y += (remotePaddleTarget - gameState.remotePaddle.y) * PADDLE_LERP_FACTOR;
+        }
+        return;
     }
 
-    if (remotePaddleInterpolating) {
-        // Smoothly lerp from current position toward target
-        // PADDLE_LERP_FACTOR of 0.25 means we cover 25% of remaining distance each frame
-        // At 60fps, this creates smooth motion between 10fps network updates
-        gameState.remotePaddle.y += (remotePaddleTarget - gameState.remotePaddle.y) * PADDLE_LERP_FACTOR;
+    // Render time is INTERP_BUFFER_DELAY ms behind current time
+    const renderTime = Date.now() - INTERP_BUFFER_DELAY;
 
-        // Stop interpolating when we're very close to target (within 1 pixel)
-        if (Math.abs(gameState.remotePaddle.y - remotePaddleTarget) < 1) {
-            gameState.remotePaddle.y = remotePaddleTarget;
-            remotePaddleInterpolating = false;
+    // Find the two buffer entries to interpolate between
+    let t0 = null, t1 = null;
+    for (let i = 0; i < remotePaddleBuffer.length - 1; i++) {
+        if (remotePaddleBuffer[i].time <= renderTime && remotePaddleBuffer[i + 1].time >= renderTime) {
+            t0 = remotePaddleBuffer[i];
+            t1 = remotePaddleBuffer[i + 1];
+            break;
         }
     }
+
+    if (t0 && t1) {
+        // Interpolate between the two known positions
+        const duration = t1.time - t0.time;
+        const elapsed = renderTime - t0.time;
+        const alpha = duration > 0 ? Math.min(1, Math.max(0, elapsed / duration)) : 0;
+
+        gameState.remotePaddle.y = t0.y + (t1.y - t0.y) * alpha;
+    } else if (remotePaddleBuffer.length > 0) {
+        // Render time is beyond buffer - extrapolate from last known position
+        const last = remotePaddleBuffer[remotePaddleBuffer.length - 1];
+        const timeSinceLast = (Date.now() - last.time) / 1000;
+
+        // Extrapolate using velocity, but cap at reasonable limits
+        if (timeSinceLast < 0.5 && last.velocity !== 0) {
+            const extrapolated = last.y + last.velocity * timeSinceLast;
+            // Blend toward extrapolated position
+            gameState.remotePaddle.y += (extrapolated - gameState.remotePaddle.y) * 0.15;
+        } else {
+            // Falls back to lerping toward last known position
+            gameState.remotePaddle.y += (last.y - gameState.remotePaddle.y) * PADDLE_LERP_FACTOR;
+        }
+    }
+
+    // Clamp to valid range
+    gameState.remotePaddle.y = Math.max(0, Math.min(CANVAS_HEIGHT - PADDLE_HEIGHT, gameState.remotePaddle.y));
 }
 
 function updateBall(dt) {
@@ -1476,6 +1705,7 @@ function checkCollisions() {
             // Defer authority transfer until we send the update
             gameState.pendingAuthorityTransfer = true;
             playPaddleHitSound();
+            paddleHitFlash.local = 1.0; // Trigger hit flash
         }
 
         // Record collision event for lag compensation
@@ -1505,6 +1735,7 @@ function checkCollisions() {
             // Defer authority transfer until we send the update
             gameState.pendingAuthorityTransfer = true;
             playPaddleHitSound();
+            paddleHitFlash.local = 1.0; // Trigger hit flash
         }
 
         // Record collision event for lag compensation
@@ -1528,6 +1759,8 @@ function checkScore() {
             playScoreSound(false); // We lost a life
         }
         updateLivesDisplay();
+        triggerScreenShake(8); // Screen shake on scoring
+        animateScoreChange(gameState.isBallOwner); // Score pop animation
 
         if (gameState.localPaddle.lives <= 0 || gameState.remotePaddle.lives <= 0) {
             endGame(gameState.localPaddle.lives > 0);
@@ -1547,6 +1780,8 @@ function checkScore() {
             playScoreSound(true); // We scored
         }
         updateLivesDisplay();
+        triggerScreenShake(8); // Screen shake on scoring
+        animateScoreChange(!gameState.isBallOwner); // Score pop animation
 
         if (gameState.localPaddle.lives <= 0 || gameState.remotePaddle.lives <= 0) {
             endGame(gameState.localPaddle.lives > 0);
@@ -1629,1077 +1864,1136 @@ function updateLivesDisplay() {
         });
     }
 
-    function render() {
-        try {
-            if (!ctx || !canvas) return;
+    // Apply score animation scale
+    if (ui.localScore) {
+        ui.localScore.style.transform = `scale(${scoreAnimation.local.scale})`;
+        ui.localScore.style.transition = 'transform 0.1s ease-out';
+    }
+    if (ui.remoteScore) {
+        ui.remoteScore.style.transform = `scale(${scoreAnimation.remote.scale})`;
+        ui.remoteScore.style.transition = 'transform 0.1s ease-out';
+    }
+}
 
-            // Clear canvas
-            ctx.fillStyle = '#1a202c';
-            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+function render() {
+    try {
+        if (!ctx || !canvas) return;
 
-            // Draw center line
-            ctx.strokeStyle = '#4a5568';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([10, 10]);
-            ctx.beginPath();
-            ctx.moveTo(CANVAS_WIDTH / 2, 0);
-            ctx.lineTo(CANVAS_WIDTH / 2, CANVAS_HEIGHT);
-            ctx.stroke();
-            ctx.setLineDash([]);
+        // Apply screen shake
+        ctx.save();
+        ctx.translate(screenShake.x, screenShake.y);
 
-            // Draw connection quality indicator (top right)
-            if (connectionEstablished && gameState.gameStarted) {
-                ctx.save();
-                ctx.font = '12px Arial';
-                ctx.textAlign = 'right';
+        // Clear canvas
+        ctx.fillStyle = '#1a202c';
+        ctx.fillRect(-10, -10, CANVAS_WIDTH + 20, CANVAS_HEIGHT + 20); // Slightly larger to cover shake
 
-                // Color based on quality
-                if (connectionQuality === 'good') {
-                    ctx.fillStyle = '#48bb78'; // green
-                } else if (connectionQuality === 'fair') {
-                    ctx.fillStyle = '#ed8936'; // orange
-                } else {
-                    ctx.fillStyle = '#f56565'; // red
-                }
+        // Draw center line
+        ctx.strokeStyle = '#4a5568';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([10, 10]);
+        ctx.beginPath();
+        ctx.moveTo(CANVAS_WIDTH / 2, 0);
+        ctx.lineTo(CANVAS_WIDTH / 2, CANVAS_HEIGHT);
+        ctx.stroke();
+        ctx.setLineDash([]);
 
-                // Draw indicator dot and text
-                ctx.fillRect(CANVAS_WIDTH - 15, 10, 8, 8);
-                ctx.fillText(`${currentPacketRate} pps`, CANVAS_WIDTH - 25, 16);
-                ctx.restore();
-            }
+        // Draw connection quality indicator (top right)
+        if (connectionEstablished && gameState.gameStarted) {
+            ctx.save();
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'right';
 
-            // Draw paddles - ball owner always on right side
-            // If I own ball: I'm on right (red), opponent on left (blue)
-            // If opponent owns ball: opponent on right (red), I'm on left (blue)
-
-            let rightPaddleY, leftPaddleY, rightPaddleColor, leftPaddleColor;
-
-            if (gameState.isBallOwner) {
-                // I own ball - I'm on right (red)
-                rightPaddleY = gameState.localPaddle.y;
-                leftPaddleY = gameState.remotePaddle.y;
-                rightPaddleColor = '#f56565'; // Red for ball owner
-                leftPaddleColor = '#4299e1';  // Blue for non-owner
+            // Color based on quality
+            if (connectionQuality === 'good') {
+                ctx.fillStyle = '#48bb78'; // green
+            } else if (connectionQuality === 'fair') {
+                ctx.fillStyle = '#ed8936'; // orange
             } else {
-                // Opponent owns ball - opponent on right (red)
-                rightPaddleY = gameState.remotePaddle.y;
-                leftPaddleY = gameState.localPaddle.y;
-                rightPaddleColor = '#f56565'; // Red for ball owner
-                leftPaddleColor = '#4299e1';  // Blue for non-owner
+                ctx.fillStyle = '#f56565'; // red
             }
 
-            const rightPaddleX = CANVAS_WIDTH - 20 - PADDLE_WIDTH;
-            const leftPaddleX = 20;
-
-            // Draw right paddle (ball owner)
-            ctx.fillStyle = rightPaddleColor;
-            ctx.fillRect(rightPaddleX, rightPaddleY, PADDLE_WIDTH, PADDLE_HEIGHT);
-
-            // Draw left paddle (non-owner)
-            ctx.fillStyle = leftPaddleColor;
-            ctx.fillRect(leftPaddleX, leftPaddleY, PADDLE_WIDTH, PADDLE_HEIGHT);
-
-            // Draw ball - only if it has velocity OR we have authority OR (waiting for serve AND we are server)
-            // Lower threshold to 0.01 to ensure ball is visible even at very low speeds
-            const ballVisible = (Math.abs(gameState.ball.vx) > 0.01 || Math.abs(gameState.ball.vy) > 0.01) ||
-                gameState.hasActiveBallAuthority ||
-                (gameState.waitingForServe && gameState.isServer);
-            if (ballVisible) {
-                // Ball color: subtle tint based on who has authority
-                // White with slight red/blue glow based on authority holder's side
-                if (gameState.hasActiveBallAuthority) {
-                    ctx.fillStyle = '#ffeeee'; // Slight red tint (I have authority)
-                } else {
-                    ctx.fillStyle = '#eeeeff'; // Slight blue tint (opponent has authority)
-                }
-                ctx.beginPath();
-                ctx.arc(gameState.ball.x, gameState.ball.y, BALL_SIZE / 2, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        } catch (e) {
-            console.error("Error in render:", e);
+            // Draw indicator dot and text
+            ctx.fillRect(CANVAS_WIDTH - 15, 10, 8, 8);
+            ctx.fillText(`${currentPacketRate} pps`, CANVAS_WIDTH - 25, 16);
+            ctx.restore();
         }
+
+        // Draw paddles - ball owner always on right side
+        // Use DISPLAY states for smooth rendering
+        let rightPaddleY, leftPaddleY, rightPaddleColor, leftPaddleColor;
+        let localPaddleX, remotePaddleX;
+
+        if (gameState.isBallOwner) {
+            // I own ball - I'm on right (red)
+            rightPaddleY = displayPaddle.local.y;
+            leftPaddleY = displayPaddle.remote.y;
+            rightPaddleColor = '#f56565'; // Red for ball owner
+            leftPaddleColor = '#4299e1';  // Blue for non-owner
+            localPaddleX = CANVAS_WIDTH - 20 - PADDLE_WIDTH;
+            remotePaddleX = 20;
+        } else {
+            // Opponent owns ball - opponent on right (red)
+            rightPaddleY = displayPaddle.remote.y;
+            leftPaddleY = displayPaddle.local.y;
+            rightPaddleColor = '#f56565'; // Red for ball owner
+            leftPaddleColor = '#4299e1';  // Blue for non-owner
+            localPaddleX = 20;
+            remotePaddleX = CANVAS_WIDTH - 20 - PADDLE_WIDTH;
+        }
+
+        const rightPaddleX = CANVAS_WIDTH - 20 - PADDLE_WIDTH;
+        const leftPaddleX = 20;
+
+        // Draw paddle hit flash (glow behind paddles)
+        if (paddleHitFlash.local > 0) {
+            ctx.save();
+            ctx.shadowBlur = 25 * paddleHitFlash.local;
+            ctx.shadowColor = '#ffffff';
+            ctx.fillStyle = gameState.isBallOwner ? rightPaddleColor : leftPaddleColor;
+            ctx.fillRect(localPaddleX, displayPaddle.local.y, PADDLE_WIDTH, PADDLE_HEIGHT);
+            ctx.restore();
+        }
+        if (paddleHitFlash.remote > 0) {
+            ctx.save();
+            ctx.shadowBlur = 25 * paddleHitFlash.remote;
+            ctx.shadowColor = '#ffffff';
+            ctx.fillStyle = gameState.isBallOwner ? leftPaddleColor : rightPaddleColor;
+            ctx.fillRect(remotePaddleX, displayPaddle.remote.y, PADDLE_WIDTH, PADDLE_HEIGHT);
+            ctx.restore();
+        }
+
+        // Draw right paddle (ball owner)
+        ctx.fillStyle = rightPaddleColor;
+        ctx.fillRect(rightPaddleX, rightPaddleY, PADDLE_WIDTH, PADDLE_HEIGHT);
+
+        // Draw left paddle (non-owner)
+        ctx.fillStyle = leftPaddleColor;
+        ctx.fillRect(leftPaddleX, leftPaddleY, PADDLE_WIDTH, PADDLE_HEIGHT);
+
+        // Draw ball - only if it has velocity OR we have authority OR (waiting for serve AND we are server)
+        const ballVisible = (Math.abs(gameState.ball.vx) > 0.01 || Math.abs(gameState.ball.vy) > 0.01) ||
+            gameState.hasActiveBallAuthority ||
+            (gameState.waitingForServe && gameState.isServer);
+
+        if (ballVisible) {
+            // Draw ball trail first (behind the ball)
+            if (ballTrail.length > 1) {
+                for (let i = 0; i < ballTrail.length - 1; i++) {
+                    const alpha = (i + 1) / ballTrail.length * 0.4; // Fade from 0 to 0.4
+                    const size = (BALL_SIZE / 2) * ((i + 1) / ballTrail.length) * 0.8; // Shrink toward tail
+
+                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                    ctx.beginPath();
+                    ctx.arc(ballTrail[i].x, ballTrail[i].y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Ball color: subtle tint based on who has authority
+            if (gameState.hasActiveBallAuthority) {
+                ctx.fillStyle = '#ffeeee'; // Slight red tint (I have authority)
+            } else {
+                ctx.fillStyle = '#eeeeff'; // Slight blue tint (opponent has authority)
+            }
+            ctx.beginPath();
+            // Use display ball position for smooth rendering
+            ctx.arc(displayBall.x, displayBall.y, BALL_SIZE / 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Restore from screen shake transform
+        ctx.restore();
+    } catch (e) {
+        console.error("Error in render:", e);
+    }
+}
+
+function endGame(won) {
+    gameState.gameEnded = true;
+    playGameOverSound(won);
+
+    if (gameLoopId) {
+        cancelAnimationFrame(gameLoopId);
+        gameLoopId = null;
     }
 
-    function endGame(won) {
-        gameState.gameEnded = true;
-        playGameOverSound(won);
+    // Calculate game duration
+    const duration = Math.floor((Date.now() - gameStartTime) / 1000);
+    const minutes = Math.floor(duration / 60);
+    const seconds = duration % 60;
+    const durationText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 
-        if (gameLoopId) {
-            cancelAnimationFrame(gameLoopId);
-            gameLoopId = null;
-        }
+    // Smooth transition to game over screen
+    ui.gameScreen.classList.remove('screen-active');
+    ui.gameScreen.classList.add('screen-hidden');
+    ui.gameOverScreen.classList.remove('screen-hidden');
+    ui.gameOverScreen.classList.add('screen-active');
 
-        // Calculate game duration
-        const duration = Math.floor((Date.now() - gameStartTime) / 1000);
-        const minutes = Math.floor(duration / 60);
-        const seconds = duration % 60;
-        const durationText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-
-        // Smooth transition to game over screen
-        ui.gameScreen.classList.remove('screen-active');
-        ui.gameScreen.classList.add('screen-hidden');
-        ui.gameOverScreen.classList.remove('screen-hidden');
-        ui.gameOverScreen.classList.add('screen-active');
-
-        // Update result UI
-        if (won) {
-            ui.resultText.textContent = 'Victory!';
-            ui.resultText.classList.add('victory');
-            ui.resultText.classList.remove('defeat');
-            ui.resultIcon.classList.add('victory');
-            ui.resultIcon.classList.remove('defeat');
-            // Update icon to checkmark (already in HTML)
-        } else {
-            ui.resultText.textContent = 'Defeat';
-            ui.resultText.classList.add('defeat');
-            ui.resultText.classList.remove('victory');
-            ui.resultIcon.classList.add('defeat');
-            ui.resultIcon.classList.remove('victory');
-            // Update icon to X
-            resultIcon.innerHTML = `
+    // Update result UI
+    if (won) {
+        ui.resultText.textContent = 'Victory!';
+        ui.resultText.classList.add('victory');
+        ui.resultText.classList.remove('defeat');
+        ui.resultIcon.classList.add('victory');
+        ui.resultIcon.classList.remove('defeat');
+        // Update icon to checkmark (already in HTML)
+    } else {
+        ui.resultText.textContent = 'Defeat';
+        ui.resultText.classList.add('defeat');
+        ui.resultText.classList.remove('victory');
+        ui.resultIcon.classList.add('defeat');
+        ui.resultIcon.classList.remove('victory');
+        // Update icon to X
+        resultIcon.innerHTML = `
             <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="4"/>
                 <path d="M35 35 L65 65 M65 35 L35 65" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
             </svg>
         `;
-        }
-
-        document.getElementById('final-score').textContent =
-            `Final Score: ${gameState.localPaddle.lives} - ${gameState.remotePaddle.lives}`;
-        document.getElementById('gameDuration').textContent = durationText;
-
-        saveGameState();
-        sendEndGame();
-        sendPlayerStatus('lobby');
     }
 
-    function restartGame() {
-        // Notify remote player first
-        SpixiAppSdk.sendNetworkData(encodeSimplePacket(MSG_FULL_RESET));
-        lastDataSent = SpixiTools.getTimestamp();
+    document.getElementById('final-score').textContent =
+        `Final Score: ${gameState.localPaddle.lives} - ${gameState.remotePaddle.lives}`;
+    document.getElementById('gameDuration').textContent = durationText;
 
-        // Execute full reset
-        performFullReset();
+    saveGameState();
+    sendEndGame();
+    sendPlayerStatus('lobby');
+}
+
+function restartGame() {
+    // Notify remote player first
+    SpixiAppSdk.sendNetworkData(encodeSimplePacket(MSG_FULL_RESET));
+    lastDataSent = SpixiTools.getTimestamp();
+
+    // Execute full reset
+    performFullReset();
+}
+
+function performFullReset() {
+    // Stop all intervals and timers
+    if (gameLoopId) {
+        cancelAnimationFrame(gameLoopId);
+        gameLoopId = null;
+    }
+    if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = null;
+    }
+    if (connectionRetryInterval) {
+        clearInterval(connectionRetryInterval);
+        connectionRetryInterval = null;
+    }
+    if (autoStartTimer) {
+        clearTimeout(autoStartTimer);
+        autoStartTimer = null;
+    }
+    if (disconnectCheckInterval) {
+        clearInterval(disconnectCheckInterval);
+        disconnectCheckInterval = null;
+    }
+    if (criticalMsgInterval) {
+        clearInterval(criticalMsgInterval);
+        criticalMsgInterval = null;
     }
 
-    function performFullReset() {
-        // Stop all intervals and timers
-        if (gameLoopId) {
-            cancelAnimationFrame(gameLoopId);
-            gameLoopId = null;
-        }
-        if (pingInterval) {
-            clearInterval(pingInterval);
-            pingInterval = null;
-        }
-        if (connectionRetryInterval) {
-            clearInterval(connectionRetryInterval);
-            connectionRetryInterval = null;
-        }
-        if (autoStartTimer) {
-            clearTimeout(autoStartTimer);
-            autoStartTimer = null;
-        }
-        if (disconnectCheckInterval) {
-            clearInterval(disconnectCheckInterval);
-            disconnectCheckInterval = null;
-        }
-        if (criticalMsgInterval) {
-            clearInterval(criticalMsgInterval);
-            criticalMsgInterval = null;
-        }
+    // Reset all connection state
+    connectionEstablished = false;
+    myRandomNumber = Math.floor(Math.random() * 1000000);
+    remoteRandomNumber = null;
 
-        // Reset all connection state
-        connectionEstablished = false;
-        myRandomNumber = Math.floor(Math.random() * 1000000);
-        remoteRandomNumber = null;
+    // Reset game state completely
+    gameState.localPaddle.y = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2;
+    gameState.localPaddle.lives = MAX_LIVES;
+    gameState.remotePaddle.y = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2;
+    gameState.remotePaddle.lives = MAX_LIVES;
+    gameState.gameStarted = false;
+    gameState.gameEnded = false;
+    gameState.isBallOwner = false;
+    gameState.hasActiveBallAuthority = false;
 
-        // Reset game state completely
-        gameState.localPaddle.y = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2;
-        gameState.localPaddle.lives = MAX_LIVES;
-        gameState.remotePaddle.y = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2;
-        gameState.remotePaddle.lives = MAX_LIVES;
-        gameState.gameStarted = false;
-        gameState.gameEnded = false;
-        gameState.isBallOwner = false;
-        gameState.hasActiveBallAuthority = false;
+    // Reset ball
+    gameState.ball.x = CANVAS_WIDTH / 2;
+    gameState.ball.y = CANVAS_HEIGHT / 2;
+    gameState.ball.vx = 0;
+    gameState.ball.vy = 0;
 
-        // Reset ball
-        gameState.ball.x = CANVAS_WIDTH / 2;
-        gameState.ball.y = CANVAS_HEIGHT / 2;
-        gameState.ball.vx = 0;
-        gameState.ball.vy = 0;
+    // Reset prediction state
+    predictedPaddleY = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2;
+    lastAuthorativePaddleY = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2;
+    lastAcknowledgedSequence = 0;
+    inputSequence = 0;
+    pendingInputs = [];
 
-        // Reset prediction state
-        predictedPaddleY = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2;
-        lastAuthorativePaddleY = CANVAS_HEIGHT / 2 - PADDLE_HEIGHT / 2;
-        lastAcknowledgedSequence = 0;
-        inputSequence = 0;
-        pendingInputs = [];
+    // Reset frame counters
+    frameCounter = 0;
+    remoteFrameCounter = 0;
+    frameCounterMismatchCount = 0;
 
-        // Reset frame counters
-        frameCounter = 0;
-        remoteFrameCounter = 0;
-        frameCounterMismatchCount = 0;
+    // Reset networking state
+    lastDataSent = 0;
+    lastSyncTime = 0;
+    lastSentFrameCounter = 0;
+    lastSentSeq = 0;
+    lastSentLastAck = 0;
+    lastSentPaddleY = gameState.localPaddle.y;
+    lastSentBallState = null;
+    lastBallSyncTime = 0;
 
-        // Reset networking state
-        lastDataSent = 0;
-        lastSyncTime = 0;
-        lastSentFrameCounter = 0;
-        lastSentSeq = 0;
-        lastSentLastAck = 0;
-        lastSentPaddleY = gameState.localPaddle.y;
-        lastSentBallState = null;
-        lastBallSyncTime = 0;
-
-        // Reset wheel position to center
-        if (wheelHandle) {
-            wheelHandle.style.top = '50%';
-        }
-
-        updateLivesDisplay();
-
-        // Transition to waiting screen
-        const gameOverScreen = document.getElementById('game-over-screen');
-        const gameScreen = document.getElementById('game-screen');
-        const waitingScreen = document.getElementById('waiting-screen');
-
-        // Robust screen transition
-        gameOverScreen.classList.remove('screen-active');
-        gameOverScreen.classList.add('screen-hidden');
-
-        gameScreen.classList.remove('screen-active');
-        gameScreen.classList.add('screen-hidden');
-
-        waitingScreen.classList.remove('screen-hidden');
-        waitingScreen.classList.add('screen-active');
-
-        const waitingText = document.querySelector('.waiting-text');
-        if (waitingText) {
-            waitingText.textContent = 'Reconnecting to opponent...';
-        }
-
-        // Re-establish connection
-        setTimeout(() => establishConnection(), 100);
+    // Reset wheel position to center
+    if (wheelHandle) {
+        wheelHandle.style.top = '50%';
     }
 
-    function exitGame() {
-        // Notify opponent about exit
-        try {
-            SpixiAppSdk.sendNetworkData(encodeSimplePacket(MSG_EXIT));
-        } catch (e) {
-            // Ignore send errors on exit
-        }
+    updateLivesDisplay();
 
-        // Cleanup intervals
-        if (gameLoopId) cancelAnimationFrame(gameLoopId);
-        if (pingInterval) clearInterval(pingInterval);
-        if (syncInterval) clearInterval(syncInterval);
-        if (connectionRetryInterval) clearInterval(connectionRetryInterval);
-        if (disconnectCheckInterval) clearInterval(disconnectCheckInterval);
-        if (criticalMsgInterval) clearInterval(criticalMsgInterval);
-        if (autoStartTimer) clearTimeout(autoStartTimer);
+    // Transition to waiting screen
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const gameScreen = document.getElementById('game-screen');
+    const waitingScreen = document.getElementById('waiting-screen');
 
-        // Close app using SDK back() helper - this will ask Spixi to go back/exit the app
-        try {
-            SpixiAppSdk.back();
-        } catch (e) {
-            // Fallback to legacy close action if back() is not available
-            try { SpixiAppSdk.spixiAction("close"); } catch (e2) { /* ignore */ }
-        }
+    // Robust screen transition
+    gameOverScreen.classList.remove('screen-active');
+    gameOverScreen.classList.add('screen-hidden');
+
+    gameScreen.classList.remove('screen-active');
+    gameScreen.classList.add('screen-hidden');
+
+    waitingScreen.classList.remove('screen-hidden');
+    waitingScreen.classList.add('screen-active');
+
+    const waitingText = document.querySelector('.waiting-text');
+    if (waitingText) {
+        waitingText.textContent = 'Reconnecting to opponent...';
     }
 
-    function handleOpponentDisconnect() {
-        // Stop game
-        gameState.gameEnded = true;
+    // Re-establish connection
+    setTimeout(() => establishConnection(), 100);
+}
 
-        if (gameLoopId) {
-            cancelAnimationFrame(gameLoopId);
-            gameLoopId = null;
-        }
-
-        // Show disconnect message
-        const statusText = document.getElementById('status-text');
-        if (statusText) {
-            statusText.textContent = 'Opponent Disconnected';
-            statusText.style.color = '#f56565';
-        }
-
-        // If in game screen, show overlay message
-        const gameScreen = document.getElementById('game-screen');
-        if (gameScreen && gameScreen.classList.contains('screen-active')) {
-            const overlay = document.getElementById('canvasOverlay');
-            if (overlay) {
-                overlay.innerHTML = '<div style="padding: 2rem; background: rgba(0,0,0,0.9); border-radius: 12px; text-align: center;"><h2 style="color: #f56565; margin-bottom: 1rem;">Opponent Disconnected</h2><p style="color: #a0aec0;">The game has ended.</p></div>';
-                overlay.style.display = 'flex';
-            }
-        }
+function exitGame() {
+    // Notify opponent about exit
+    try {
+        SpixiAppSdk.sendNetworkData(encodeSimplePacket(MSG_EXIT));
+    } catch (e) {
+        // Ignore send errors on exit
     }
 
-    /**
-     * Send ball state including collision timestamp for lag compensation
-     * Remote player can use timestamp to retroactively verify collision occurred
-     * at approximately the same time on both clients, even with network delay
-     */
-    function sendBallStateWithCollision() {
-        const b = gameState.ball;
-        const collisionMsg = {
-            a: "collision",
-            f: frameCounter,
-            seq: inputSequence,
-            t: Date.now(), // Collision event timestamp (milliseconds)
-            x: Math.round(CANVAS_WIDTH - b.x), // Mirror X for opponent's view
-            y: Math.round(b.y),
-            vx: Math.round(-b.vx * 100), // Integer velocity (*100)
-            vy: Math.round(b.vy * 100)
-        };
+    // Cleanup intervals
+    if (gameLoopId) cancelAnimationFrame(gameLoopId);
+    if (pingInterval) clearInterval(pingInterval);
+    if (syncInterval) clearInterval(syncInterval);
+    if (connectionRetryInterval) clearInterval(connectionRetryInterval);
+    if (disconnectCheckInterval) clearInterval(disconnectCheckInterval);
+    if (criticalMsgInterval) clearInterval(criticalMsgInterval);
+    if (autoStartTimer) clearTimeout(autoStartTimer);
 
-        // Use specialized Collision packet type
-        SpixiAppSdk.sendNetworkData(encodeBallEventPacket(MSG_COLLISION, Date.now(), {
-            x: Math.round(b.x), // No mirroring
-            y: Math.round(b.y),
-            vx: b.vx,
-            vy: b.vy
-        }));
+    // Close app using SDK back() helper - this will ask Spixi to go back/exit the app
+    try {
+        SpixiAppSdk.back();
+    } catch (e) {
+        // Fallback to legacy close action if back() is not available
+        try { SpixiAppSdk.spixiAction("close"); } catch (e2) { /* ignore */ }
+    }
+}
+
+function handleOpponentDisconnect() {
+    // Stop game
+    gameState.gameEnded = true;
+
+    if (gameLoopId) {
+        cancelAnimationFrame(gameLoopId);
+        gameLoopId = null;
     }
 
-    function sendBallEvent(type) {
-        const b = gameState.ball;
-        const eventTime = Date.now(); // Use local time (receiver calculates delta)
-
-        // Convert type string to ID
-        const typeId = type === "bounce" ? MSG_BOUNCE : MSG_LAUNCH;
-        SpixiAppSdk.sendNetworkData(encodeBallEventPacket(typeId, eventTime, {
-            x: Math.round(b.x), // No mirroring
-            y: Math.round(b.y),
-            vx: b.vx,
-            vy: b.vy
-        }));
-        lastDataSent = SpixiTools.getTimestamp();
+    // Show disconnect message
+    const statusText = document.getElementById('status-text');
+    if (statusText) {
+        statusText.textContent = 'Opponent Disconnected';
+        statusText.style.color = '#f56565';
     }
 
-    /**
-     * Handle ball state update from host.
-     * HOST-AUTHORITY MODEL: Client just snaps to host's ball position.
-     */
-    function handleBallEvent(msg) {
-        // Only client (non-ball-owner) processes ball updates
-        if (gameState.isBallOwner) return;
+    // If in game screen, show overlay message
+    const gameScreen = document.getElementById('game-screen');
+    if (gameScreen && gameScreen.classList.contains('screen-active')) {
+        const overlay = document.getElementById('canvasOverlay');
+        if (overlay) {
+            overlay.innerHTML = '<div style="padding: 2rem; background: rgba(0,0,0,0.9); border-radius: 12px; text-align: center;"><h2 style="color: #f56565; margin-bottom: 1rem;">Opponent Disconnected</h2><p style="color: #a0aec0;">The game has ended.</p></div>';
+            overlay.style.display = 'flex';
+        }
+    }
+}
 
-        // Extract state from message
-        let ballX, ballY, ballVx, ballVy;
+/**
+ * Send ball state including collision timestamp for lag compensation
+ * Remote player can use timestamp to retroactively verify collision occurred
+ * at approximately the same time on both clients, even with network delay
+ */
+function sendBallStateWithCollision() {
+    const b = gameState.ball;
+    const collisionMsg = {
+        a: "collision",
+        f: frameCounter,
+        seq: inputSequence,
+        t: Date.now(), // Collision event timestamp (milliseconds)
+        x: Math.round(CANVAS_WIDTH - b.x), // Mirror X for opponent's view
+        y: Math.round(b.y),
+        vx: Math.round(-b.vx * 100), // Integer velocity (*100)
+        vy: Math.round(b.vy * 100)
+    };
 
-        if (msg.isDecodedBinary) {
-            ballX = msg.ballX;
-            ballY = msg.ballY;
-            ballVx = msg.ballVx;
-            ballVy = msg.ballVy;
+    // Use specialized Collision packet type
+    SpixiAppSdk.sendNetworkData(encodeBallEventPacket(MSG_COLLISION, Date.now(), {
+        x: Math.round(b.x), // No mirroring
+        y: Math.round(b.y),
+        vx: b.vx,
+        vy: b.vy
+    }));
+}
+
+function sendBallEvent(type) {
+    const b = gameState.ball;
+    const eventTime = Date.now(); // Use local time (receiver calculates delta)
+
+    // Convert type string to ID
+    const typeId = type === "bounce" ? MSG_BOUNCE : MSG_LAUNCH;
+    SpixiAppSdk.sendNetworkData(encodeBallEventPacket(typeId, eventTime, {
+        x: Math.round(b.x), // No mirroring
+        y: Math.round(b.y),
+        vx: b.vx,
+        vy: b.vy
+    }));
+    lastDataSent = SpixiTools.getTimestamp();
+}
+
+/**
+ * Handle ball state update from host.
+ * HOST-AUTHORITY MODEL: Client just snaps to host's ball position.
+ */
+function handleBallEvent(msg) {
+    // Only client (non-ball-owner) processes ball updates
+    if (gameState.isBallOwner) return;
+
+    // Extract state from message
+    let ballX, ballY, ballVx, ballVy;
+
+    if (msg.isDecodedBinary) {
+        ballX = msg.ballX;
+        ballY = msg.ballY;
+        ballVx = msg.ballVx;
+        ballVy = msg.ballVy;
+    } else {
+        ballX = msg.ballX !== undefined ? msg.ballX : (msg.b ? msg.b.x : msg.x);
+        ballY = msg.ballY !== undefined ? msg.ballY : (msg.b ? msg.b.y : msg.y);
+        let vx = msg.ballVx !== undefined ? msg.ballVx : (msg.b ? msg.b.vx : msg.vx);
+        let vy = msg.ballVy !== undefined ? msg.ballVy : (msg.b ? msg.b.vy : msg.vy);
+
+        // Check if velocities need scaling (heuristic)
+        if (Math.abs(vx) > 50) {
+            ballVx = vx / 100;
+            ballVy = vy / 100;
         } else {
-            ballX = msg.ballX !== undefined ? msg.ballX : (msg.b ? msg.b.x : msg.x);
-            ballY = msg.ballY !== undefined ? msg.ballY : (msg.b ? msg.b.y : msg.y);
-            let vx = msg.ballVx !== undefined ? msg.ballVx : (msg.b ? msg.b.vx : msg.vx);
-            let vy = msg.ballVy !== undefined ? msg.ballVy : (msg.b ? msg.b.vy : msg.vy);
-
-            // Check if velocities need scaling (heuristic)
-            if (Math.abs(vx) > 50) {
-                ballVx = vx / 100;
-                ballVy = vy / 100;
-            } else {
-                ballVx = vx;
-                ballVy = vy;
-            }
+            ballVx = vx;
+            ballVy = vy;
         }
-
-        // CLIENT: Simply snap to host's ball state
-        gameState.ball.x = ballX;
-        gameState.ball.y = ballY;
-        gameState.ball.vx = ballVx;
-        gameState.ball.vy = ballVy;
     }
 
-    // Network functions - Unified game state sync at 10fps (100ms intervals)
-    /**
-     * SEND GAME STATE - Core networking function
-     * 
-     * This function builds and sends the main game state packet using DELTA UPDATES.
-     * It is the heart of the networking layer and implements multiple techniques:
-     * 
-     * 1. CLIENT-SIDE PREDICTION (task #2)
-     *    - Uses predictedPaddleY (our local estimate) not authoritative position
-     *    - Assigns sequence number to each new paddle position
-     *    - Stores input in pendingInputs[] for later reconciliation
-     * 
-     * 2. INPUT SEQUENCE TRACKING (task #1)
-     *    - Each paddle movement gets unique sequence number
-     *    - Incremented only when paddle Y changes
-     *    - Enables receiver to replay pending inputs on reconciliation
-     * 
-     * 3. DELTA UPDATES (task #11 - Bandwidth optimization)
-     *    - Only includes fields that changed since last send
-     *    - Frame counter sent only if incremented
-     *    - Paddle sent only if position changed
-     *    - Sequence/lastAck sent only if they changed
-     *    - Ball sent only if position/velocity differs
-     *    - Typical packet: {a:"state",f:120,p:250} (30 bytes vs 80 bytes full)
-     * 
-     * 4. FRAME COUNTER SYNC (task #9)
-     *    - frameCounter increments every game frame (60 times/second locally)
-     *    - Sent to remote so they can detect out-of-order packets
-     *    - Remote rejects packets where frame < lastSeenFrame
-     * 
-     * 5. ACKNOWLEDGMENT SYSTEM (task #4)
-     *    - lastAck echoes back remote's last sequence number we received
-     *    - Remote uses this to know which of their inputs we processed
-     *    - Allows remote to remove acknowledged inputs from their buffer
-     *    - Example: We send lastAck=5, remote can clear inputs 1-5 from buffer
-     * 
-     * 6. BALL STATE COORDINATION
-     *    - Each player sends ball state when ball moving toward opponent
-     *    - Ball owner (right paddle) sends when vx > 0 (moving right/toward opponent)
-     *    - Non-owner (left paddle) sends when vx < 0 (moving left/toward opponent)
-     *    - Coordinates are MIRRORED to opponent's view
-     * 
-     * MIRRORING EXAMPLE:
-     *    - In global coordinates, right player sees ball at x=600 moving right (vx=+4)
-     *    - They mirror: x_mirrored = 800 - 600 = 200, vx_mirrored = -4
-     *    - Left player receives x=200, vx=-4 (same trajectory in their view)
-     *    - Both players see identical ball motion trajectory
-     * 
-     * PACKET EXAMPLE (delta):
-     *    Regular state: {a:"state", f:147, p:290, seq:23, lastAck:18}
-     *    With ball:     {a:"state", f:147, p:290, seq:23, lastAck:18, b:{x:150, y:300, vx:5.2, vy:-1.3}}
-     *    Minimal:       {a:"state", f:149}  (if only frame counter changed)
-     * 
-     * SEND RATE: 10fps (100ms intervals) - Balance between responsiveness and bandwidth
-     * RENDER RATE: 60fps - Interpolation bridges the gap between sends
-     */
-    function sendGameState() {
-        try {
-            if (!gameState.gameStarted || gameState.gameEnded) {
-                return; // Don't send if game not active
-            }
+    // Store for extrapolation (used by client to predict between updates)
+    lastBallUpdate.time = Date.now();
+    lastBallUpdate.x = ballX;
+    lastBallUpdate.y = ballY;
+    lastBallUpdate.vx = ballVx;
+    lastBallUpdate.vy = ballVy;
 
-            const currentTime = SpixiTools.getTimestamp();
-            lastDataSent = currentTime;
+    // CLIENT: Simply snap to host's ball state
+    gameState.ball.x = ballX;
+    gameState.ball.y = ballY;
+    gameState.ball.vx = ballVx;
+    gameState.ball.vy = ballVy;
+}
 
-            // Use predicted paddle position (client-side prediction)
-            const paddleY = Math.round(predictedPaddleY);
+// Network functions - Unified game state sync at 10fps (100ms intervals)
+/**
+ * SEND GAME STATE - Core networking function
+ * 
+ * This function builds and sends the main game state packet using DELTA UPDATES.
+ * It is the heart of the networking layer and implements multiple techniques:
+ * 
+ * 1. CLIENT-SIDE PREDICTION (task #2)
+ *    - Uses predictedPaddleY (our local estimate) not authoritative position
+ *    - Assigns sequence number to each new paddle position
+ *    - Stores input in pendingInputs[] for later reconciliation
+ * 
+ * 2. INPUT SEQUENCE TRACKING (task #1)
+ *    - Each paddle movement gets unique sequence number
+ *    - Incremented only when paddle Y changes
+ *    - Enables receiver to replay pending inputs on reconciliation
+ * 
+ * 3. DELTA UPDATES (task #11 - Bandwidth optimization)
+ *    - Only includes fields that changed since last send
+ *    - Frame counter sent only if incremented
+ *    - Paddle sent only if position changed
+ *    - Sequence/lastAck sent only if they changed
+ *    - Ball sent only if position/velocity differs
+ *    - Typical packet: {a:"state",f:120,p:250} (30 bytes vs 80 bytes full)
+ * 
+ * 4. FRAME COUNTER SYNC (task #9)
+ *    - frameCounter increments every game frame (60 times/second locally)
+ *    - Sent to remote so they can detect out-of-order packets
+ *    - Remote rejects packets where frame < lastSeenFrame
+ * 
+ * 5. ACKNOWLEDGMENT SYSTEM (task #4)
+ *    - lastAck echoes back remote's last sequence number we received
+ *    - Remote uses this to know which of their inputs we processed
+ *    - Allows remote to remove acknowledged inputs from their buffer
+ *    - Example: We send lastAck=5, remote can clear inputs 1-5 from buffer
+ * 
+ * 6. BALL STATE COORDINATION
+ *    - Each player sends ball state when ball moving toward opponent
+ *    - Ball owner (right paddle) sends when vx > 0 (moving right/toward opponent)
+ *    - Non-owner (left paddle) sends when vx < 0 (moving left/toward opponent)
+ *    - Coordinates are MIRRORED to opponent's view
+ * 
+ * MIRRORING EXAMPLE:
+ *    - In global coordinates, right player sees ball at x=600 moving right (vx=+4)
+ *    - They mirror: x_mirrored = 800 - 600 = 200, vx_mirrored = -4
+ *    - Left player receives x=200, vx=-4 (same trajectory in their view)
+ *    - Both players see identical ball motion trajectory
+ * 
+ * PACKET EXAMPLE (delta):
+ *    Regular state: {a:"state", f:147, p:290, seq:23, lastAck:18}
+ *    With ball:     {a:"state", f:147, p:290, seq:23, lastAck:18, b:{x:150, y:300, vx:5.2, vy:-1.3}}
+ *    Minimal:       {a:"state", f:149}  (if only frame counter changed)
+ * 
+ * SEND RATE: 10fps (100ms intervals) - Balance between responsiveness and bandwidth
+ * RENDER RATE: 60fps - Interpolation bridges the gap between sends
+ */
+function sendGameState() {
+    try {
+        if (!gameState.gameStarted || gameState.gameEnded) {
+            return; // Don't send if game not active
+        }
 
-            // Check if paddle position changed since last send
-            const paddleChanged = paddleY !== lastSentPaddleY;
+        const currentTime = SpixiTools.getTimestamp();
+        lastDataSent = currentTime;
 
-            // If paddle position changed, assign new sequence number and store in buffer
-            if (paddleChanged) {
-                inputSequence++;
-                const input = {
-                    seq: inputSequence,
-                    paddleY: paddleY,
-                    timestamp: currentTime
+        // Use predicted paddle position (client-side prediction)
+        const paddleY = Math.round(predictedPaddleY);
+
+        // Check if paddle position changed since last send
+        const paddleChanged = paddleY !== lastSentPaddleY;
+
+        // If paddle position changed, assign new sequence number and store in buffer
+        if (paddleChanged) {
+            inputSequence++;
+            const input = {
+                seq: inputSequence,
+                paddleY: paddleY,
+                timestamp: currentTime
+            };
+            pendingInputs.push(input);
+            lastSentPaddleY = paddleY;
+        }
+
+        // Build unified state packet - delta updates (only include fields that changed)
+        // Reuse object to reduce GC
+        const state = reusableStatePacket;
+        // Clear previous properties (except 'a')
+        for (const key in state) {
+            if (key !== 'a') delete state[key];
+        }
+
+        // Include frame counter only if changed (frame counter should always increment)
+        if (frameCounter !== lastSentFrameCounter) {
+            state.f = frameCounter;
+            lastSentFrameCounter = frameCounter;
+        }
+
+        // Include paddle only if changed
+        if (paddleChanged) {
+            state.p = Math.round(paddleY); // Round to integer for packet size optimization
+        }
+
+        // Include sequence number only if changed
+        if (inputSequence !== lastSentSeq) {
+            state.seq = inputSequence;
+            lastSentSeq = inputSequence;
+        }
+
+        // Include lastAck only if changed
+        if (lastAcknowledgedSequence !== lastSentLastAck) {
+            state.lastAck = lastAcknowledgedSequence;
+            lastSentLastAck = lastAcknowledgedSequence;
+        }
+
+        // HOST-AUTHORITY: Host (ball owner) always sends ball state
+        // Client just snaps to received position
+        if (gameState.isBallOwner) {
+            const b = gameState.ball;
+
+            // Use reusable ball state object
+            reusableBallState.x = b.x;
+            reusableBallState.y = b.y;
+            reusableBallState.vx = b.vx;
+            reusableBallState.vy = b.vy;
+
+            const newBallState = reusableBallState;
+
+            // BANDWIDTH OPTIMIZATION: 20pps heartbeat (50ms) for robust sync
+            const timeSinceBallUpdate = currentTime - (lastBallUpdateTime || 0);
+            const needsUpdate = timeSinceBallUpdate >= 50; // 20pps
+
+            if (needsUpdate) {
+                state.b = newBallState;
+                lastSentBallState = {
+                    x: newBallState.x,
+                    y: newBallState.y,
+                    vx: newBallState.vx,
+                    vy: newBallState.vy
                 };
-                pendingInputs.push(input);
-                lastSentPaddleY = paddleY;
+                lastBallUpdateTime = currentTime;
             }
-
-            // Build unified state packet - delta updates (only include fields that changed)
-            // Reuse object to reduce GC
-            const state = reusableStatePacket;
-            // Clear previous properties (except 'a')
-            for (const key in state) {
-                if (key !== 'a') delete state[key];
-            }
-
-            // Include frame counter only if changed (frame counter should always increment)
-            if (frameCounter !== lastSentFrameCounter) {
-                state.f = frameCounter;
-                lastSentFrameCounter = frameCounter;
-            }
-
-            // Include paddle only if changed
-            if (paddleChanged) {
-                state.p = Math.round(paddleY); // Round to integer for packet size optimization
-            }
-
-            // Include sequence number only if changed
-            if (inputSequence !== lastSentSeq) {
-                state.seq = inputSequence;
-                lastSentSeq = inputSequence;
-            }
-
-            // Include lastAck only if changed
-            if (lastAcknowledgedSequence !== lastSentLastAck) {
-                state.lastAck = lastAcknowledgedSequence;
-                lastSentLastAck = lastAcknowledgedSequence;
-            }
-
-            // HOST-AUTHORITY: Host (ball owner) always sends ball state
-            // Client just snaps to received position
-            if (gameState.isBallOwner) {
-                const b = gameState.ball;
-
-                // Use reusable ball state object
-                reusableBallState.x = b.x;
-                reusableBallState.y = b.y;
-                reusableBallState.vx = b.vx;
-                reusableBallState.vy = b.vy;
-
-                const newBallState = reusableBallState;
-
-                // BANDWIDTH OPTIMIZATION: 20pps heartbeat (50ms) for robust sync
-                const timeSinceBallUpdate = currentTime - (lastBallUpdateTime || 0);
-                const needsUpdate = timeSinceBallUpdate >= 50; // 20pps
-
-                if (needsUpdate) {
-                    state.b = newBallState;
-                    lastSentBallState = {
-                        x: newBallState.x,
-                        y: newBallState.y,
-                        vx: newBallState.vx,
-                        vy: newBallState.vy
-                    };
-                    lastBallUpdateTime = currentTime;
-                }
-            }
-
-            // Always send state packet
-            // Binary protocol: encode as compact binary
-            const ball = state.b ? {
-                x: state.b.x,
-                y: state.b.y,
-                vx: state.b.vx, // Pass raw float (encodeStatePacket does *100)
-                vy: state.b.vy
-            } : null;
-            const binaryData = encodeStatePacket(
-                frameCounter,
-                paddleY,
-                inputSequence,
-                lastAcknowledgedSequence,
-                ball
-            );
-            SpixiAppSdk.sendNetworkData(binaryData);
-        } catch (e) {
-            console.error("Error sending game state:", e);
         }
+
+        // Always send state packet
+        // Binary protocol: encode as compact binary
+        const ball = state.b ? {
+            x: state.b.x,
+            y: state.b.y,
+            vx: state.b.vx, // Pass raw float (encodeStatePacket does *100)
+            vy: state.b.vy
+        } : null;
+        const binaryData = encodeStatePacket(
+            frameCounter,
+            paddleY,
+            inputSequence,
+            lastAcknowledgedSequence,
+            ball
+        );
+        SpixiAppSdk.sendNetworkData(binaryData);
+    } catch (e) {
+        console.error("Error sending game state:", e);
+    }
+}
+
+
+
+/**
+ * Frame counter sync: Validate incoming packets are not out of order
+ * 
+ * Frame counter helps detect:
+ * - Out-of-order packets: If new frame < last frame, packet arrived late
+ * - Dropped packets: Large frame gaps indicate missed network updates
+ * - Stale packets: Repeated old frame numbers should be ignored
+ * 
+ * Returns true if packet should be processed, false if it's stale/out-of-order
+ */
+function validateFrameCounter(newFrameCounter) {
+    // First packet from remote
+    if (remoteFrameCounter === 0) {
+        remoteFrameCounter = newFrameCounter;
+        frameCounterMismatchCount = 0;
+        lastValidRemoteFrameTime = Date.now();
+        return true;
     }
 
+    // Check if frame counter is progressing forward
+    if (newFrameCounter > remoteFrameCounter) {
+        // Normal progression - accept it
+        remoteFrameCounter = newFrameCounter;
+        frameCounterMismatchCount = 0;
+        lastValidRemoteFrameTime = Date.now();
+        return true;
+    } else if (newFrameCounter === remoteFrameCounter) {
+        // Duplicate frame counter (retransmit) - ignore it
+        return false;
+    } else {
+        // Frame counter went backward (out-of-order packet)
+        frameCounterMismatchCount++;
 
-
-    /**
-     * Frame counter sync: Validate incoming packets are not out of order
-     * 
-     * Frame counter helps detect:
-     * - Out-of-order packets: If new frame < last frame, packet arrived late
-     * - Dropped packets: Large frame gaps indicate missed network updates
-     * - Stale packets: Repeated old frame numbers should be ignored
-     * 
-     * Returns true if packet should be processed, false if it's stale/out-of-order
-     */
-    function validateFrameCounter(newFrameCounter) {
-        // First packet from remote
-        if (remoteFrameCounter === 0) {
-            remoteFrameCounter = newFrameCounter;
-            frameCounterMismatchCount = 0;
-            lastValidRemoteFrameTime = Date.now();
-            return true;
-        }
-
-        // Check if frame counter is progressing forward
-        if (newFrameCounter > remoteFrameCounter) {
-            // Normal progression - accept it
-            remoteFrameCounter = newFrameCounter;
-            frameCounterMismatchCount = 0;
-            lastValidRemoteFrameTime = Date.now();
-            return true;
-        } else if (newFrameCounter === remoteFrameCounter) {
-            // Duplicate frame counter (retransmit) - ignore it
-            return false;
+        // Allow one out-of-order packet per second (network jitter)
+        // But reject if too many arrive (indicates network issues)
+        const timeSinceLastValid = Date.now() - lastValidRemoteFrameTime;
+        if (frameCounterMismatchCount < 3 || timeSinceLastValid > 1000) {
+            frameCounterMismatchCount = Math.max(0, frameCounterMismatchCount - 1);
+            return true; // Accept despite being out-of-order (might be legitimate latency variance)
         } else {
-            // Frame counter went backward (out-of-order packet)
-            frameCounterMismatchCount++;
+            // Too many out-of-order packets - something's wrong
+            console.warn(`Out-of-order frame counter detected: got ${newFrameCounter}, expected > ${remoteFrameCounter}`);
+            return false; // Reject stale packet
+        }
+    }
+}
 
-            // Allow one out-of-order packet per second (network jitter)
-            // But reject if too many arrive (indicates network issues)
-            const timeSinceLastValid = Date.now() - lastValidRemoteFrameTime;
-            if (frameCounterMismatchCount < 3 || timeSinceLastValid > 1000) {
-                frameCounterMismatchCount = Math.max(0, frameCounterMismatchCount - 1);
-                return true; // Accept despite being out-of-order (might be legitimate latency variance)
-            } else {
-                // Too many out-of-order packets - something's wrong
-                console.warn(`Out-of-order frame counter detected: got ${newFrameCounter}, expected > ${remoteFrameCounter}`);
-                return false; // Reject stale packet
-            }
+/**
+ * Server reconciliation: Recompute paddle position from authoritative state + unacknowledged inputs
+ * Called when receiving state update from remote player with their last acknowledged sequence.
+ * This ensures smooth gameplay even when inputs arrive out of order or are delayed.
+ * 
+ * Process:
+ * 1. Receive remote's acknowledgment of which inputs they processed (lastAckSeq)
+ * 2. Accept their authoritative paddle position (authPaddleY)
+ * 3. Replay all pending inputs that came after their acknowledgment
+ * 4. Result: our predicted state stays in sync with their authoritative view
+ */
+function reconcilePaddleState(authPaddleY, lastAckSeq) {
+    // Update with authoritative state from remote player
+    lastAuthorativePaddleY = authPaddleY;
+    lastAuthorativeSequence = lastAckSeq;
+
+    // Set predicted position to authoritative, then replay unacknowledged inputs
+    predictedPaddleY = authPaddleY;
+
+    // Replay all inputs not yet acknowledged by remote
+    for (const input of pendingInputs) {
+        if (input.seq > lastAckSeq) {
+            // Recalculate paddle position as if this input were applied to authoritative state
+            // This simulates what the remote player will see after processing our input
+            predictedPaddleY = input.paddleY;
         }
     }
 
-    /**
-     * Server reconciliation: Recompute paddle position from authoritative state + unacknowledged inputs
-     * Called when receiving state update from remote player with their last acknowledged sequence.
-     * This ensures smooth gameplay even when inputs arrive out of order or are delayed.
-     * 
-     * Process:
-     * 1. Receive remote's acknowledgment of which inputs they processed (lastAckSeq)
-     * 2. Accept their authoritative paddle position (authPaddleY)
-     * 3. Replay all pending inputs that came after their acknowledgment
-     * 4. Result: our predicted state stays in sync with their authoritative view
-     */
-    function reconcilePaddleState(authPaddleY, lastAckSeq) {
-        // Update with authoritative state from remote player
-        lastAuthorativePaddleY = authPaddleY;
-        lastAuthorativeSequence = lastAckSeq;
+    // Ensure predicted paddle stays within bounds after reconciliation
+    predictedPaddleY = Math.max(0, Math.min(CANVAS_HEIGHT - PADDLE_HEIGHT, predictedPaddleY));
 
-        // Set predicted position to authoritative, then replay unacknowledged inputs
-        predictedPaddleY = authPaddleY;
+    // Update game state to reflect reconciled position
+    gameState.localPaddle.y = predictedPaddleY;
+}
 
-        // Replay all inputs not yet acknowledged by remote
-        for (const input of pendingInputs) {
-            if (input.seq > lastAckSeq) {
-                // Recalculate paddle position as if this input were applied to authoritative state
-                // This simulates what the remote player will see after processing our input
-                predictedPaddleY = input.paddleY;
-            }
+function sendLifeUpdate() {
+    // Send life updates with reliable delivery
+    const currentTime = SpixiTools.getTimestamp();
+    lastDataSent = currentTime;
+    SpixiAppSdk.sendNetworkData(encodeLivesPacket(MSG_LIVES, gameState.localPaddle.lives, gameState.remotePaddle.lives));
+}
+
+function sendEndGame() {
+    const currentTime = SpixiTools.getTimestamp();
+    lastDataSent = currentTime;
+    SpixiAppSdk.sendNetworkData(encodeLivesPacket(MSG_END, gameState.localPaddle.lives, gameState.remotePaddle.lives));
+}
+
+function saveGameState() {
+    // Save final game state for statistics/history (optional)
+    if (remotePlayerAddress !== '') {
+        setTimeout(() => {
+            SpixiAppSdk.setStorageData(remotePlayerAddress, btoa(JSON.stringify(gameState)));
+        }, 50);
+    }
+}
+
+// Spixi SDK callbacks
+SpixiAppSdk.onInit = function (sid, userAddresses) {
+    sessionId = sid;
+    const addresses = userAddresses.split(",");
+    remotePlayerAddress = addresses[0];
+
+    // Local player is always on the right side
+
+    // Initialize game UI and start connection
+    initGame();
+    establishConnection();
+
+    // Show waiting screen - always start with fresh game
+    const waitingScreen = document.getElementById('waiting-screen');
+    const gameScreen = document.getElementById('game-screen');
+    waitingScreen.style.display = 'flex';
+    gameScreen.style.display = 'none';
+
+    const waitingText = document.querySelector('.waiting-text');
+    if (waitingText) {
+        waitingText.textContent = 'Connecting to opponent...';
+    }
+};
+
+SpixiAppSdk.onNetworkData = function (senderAddress, data) {
+    playerLastSeen = SpixiTools.getTimestamp();
+
+    // Track packet rate for connection quality
+    packetReceiveCount++;
+    const now = Date.now();
+    if (now - lastPacketRateCheck >= 1000) {
+        currentPacketRate = packetReceiveCount;
+        packetReceiveCount = 0;
+        lastPacketRateCheck = now;
+
+        // Update connection quality
+        if (currentPacketRate >= 60) {
+            connectionQuality = 'good';
+        } else if (currentPacketRate >= 30) {
+            connectionQuality = 'fair';
+        } else {
+            connectionQuality = 'poor';
         }
 
-        // Ensure predicted paddle stays within bounds after reconciliation
-        predictedPaddleY = Math.max(0, Math.min(CANVAS_HEIGHT - PADDLE_HEIGHT, predictedPaddleY));
+        // Update lag indicator UI
+        const lagIndicator = document.getElementById('lag-indicator');
+        if (lagIndicator) {
+            lagIndicator.className = 'lag-' + connectionQuality;
+        }
 
-        // Update game state to reflect reconciled position
-        gameState.localPaddle.y = predictedPaddleY;
-    }
-
-    function sendLifeUpdate() {
-        // Send life updates with reliable delivery
-        const currentTime = SpixiTools.getTimestamp();
-        lastDataSent = currentTime;
-        SpixiAppSdk.sendNetworkData(encodeLivesPacket(MSG_LIVES, gameState.localPaddle.lives, gameState.remotePaddle.lives));
-    }
-
-    function sendEndGame() {
-        const currentTime = SpixiTools.getTimestamp();
-        lastDataSent = currentTime;
-        SpixiAppSdk.sendNetworkData(encodeLivesPacket(MSG_END, gameState.localPaddle.lives, gameState.remotePaddle.lives));
-    }
-
-    function saveGameState() {
-        // Save final game state for statistics/history (optional)
-        if (remotePlayerAddress !== '') {
-            setTimeout(() => {
-                SpixiAppSdk.setStorageData(remotePlayerAddress, btoa(JSON.stringify(gameState)));
-            }, 50);
+        // Adaptive network rate based on RTT
+        const rtt = timeSync.rtt || 100;
+        if (rtt < 50) {
+            networkThrottleDelay = 0;   // Low latency
+        } else if (rtt < 150) {
+            networkThrottleDelay = 50;  // Medium latency (+50ms interval)
+        } else {
+            networkThrottleDelay = 100; // High latency (+100ms interval)
         }
     }
 
-    // Spixi SDK callbacks
-    SpixiAppSdk.onInit = function (sid, userAddresses) {
-        sessionId = sid;
-        const addresses = userAddresses.split(",");
-        remotePlayerAddress = addresses[0];
+    try {
+        // Check for binary packet first
+        if (isBinaryPacket(data)) {
+            const binaryMsg = decodeBinaryPacket(data);
+            if (!binaryMsg) return;
 
-        // Local player is always on the right side
-
-        // Initialize game UI and start connection
-        initGame();
-        establishConnection();
-
-        // Show waiting screen - always start with fresh game
-        const waitingScreen = document.getElementById('waiting-screen');
-        const gameScreen = document.getElementById('game-screen');
-        waitingScreen.style.display = 'flex';
-        gameScreen.style.display = 'none';
-
-        const waitingText = document.querySelector('.waiting-text');
-        if (waitingText) {
-            waitingText.textContent = 'Connecting to opponent...';
-        }
-    };
-
-    SpixiAppSdk.onNetworkData = function (senderAddress, data) {
-        playerLastSeen = SpixiTools.getTimestamp();
-
-        // Track packet rate for connection quality
-        packetReceiveCount++;
-        const now = Date.now();
-        if (now - lastPacketRateCheck >= 1000) {
-            currentPacketRate = packetReceiveCount;
-            packetReceiveCount = 0;
-            lastPacketRateCheck = now;
-
-            // Update connection quality
-            if (currentPacketRate >= 60) {
-                connectionQuality = 'good';
-            } else if (currentPacketRate >= 30) {
-                connectionQuality = 'fair';
-            } else {
-                connectionQuality = 'poor';
+            if (binaryMsg.type === MSG_PADDLE) {
+                // Fast Path: Paddle Update - add to interpolation buffer
+                addToRemotePaddleBuffer(binaryMsg.paddleY);
+                remotePaddleTarget = binaryMsg.paddleY; // Keep for fallback
+                return;
             }
 
-            // Update lag indicator UI
-            const lagIndicator = document.getElementById('lag-indicator');
-            if (lagIndicator) {
-                lagIndicator.className = 'lag-' + connectionQuality;
-            }
-
-            // Adaptive network rate based on RTT
-            const rtt = timeSync.rtt || 100;
-            if (rtt < 50) {
-                networkThrottleDelay = 0;   // Low latency
-            } else if (rtt < 150) {
-                networkThrottleDelay = 50;  // Medium latency (+50ms interval)
-            } else {
-                networkThrottleDelay = 100; // High latency (+100ms interval)
-            }
-        }
-
-        try {
-            // Check for binary packet first
-            if (isBinaryPacket(data)) {
-                const binaryMsg = decodeBinaryPacket(data);
-                if (!binaryMsg) return;
-
-                if (binaryMsg.type === MSG_PADDLE) {
-                    // Fast Path: Paddle Update
-                    remotePaddleTarget = binaryMsg.paddleY;
-                    return;
-                }
-
-                if (binaryMsg.type === MSG_STATE) {
-                    // If we receive state but aren't connected, we might have missed the handshake.
-                    // Aggressively send CONNECT to prompt the other side to reply.
-                    // THROTTLED: Only send once per second to avoid packet storm.
-                    const now = Date.now();
-                    if (!connectionEstablished && now - lastWakeUpSent > 1000) {
-                        SpixiAppSdk.sendNetworkData(encodeConnectPacket(sessionId, myRandomNumber));
-                        lastWakeUpSent = now;
-                    }
-
-                    // Process binary state packet
-                    const frame = binaryMsg.frame;
-                    const paddleY = binaryMsg.paddleY;
-                    const seq = binaryMsg.seq;
-                    const lastAck = binaryMsg.lastAck;
-
-                    // ALWAYS update remote paddle - paddle position is stateless
-                    // and doesn't need ordering guarantees like ball physics.
-                    // This ensures smooth paddle movement even if some packets are rejected.
-                    remotePaddleTarget = paddleY;
-
-                    // Validate frame counter for ball/acknowledgment processing
-                    if (!validateFrameCounter(frame)) {
-                        return; // Reject out-of-order packet for ball state, but paddle already updated
-                    }
-
-                    // Process acknowledgment - remove confirmed inputs
-                    if (lastAck > lastAcknowledgedSequence) {
-                        lastAcknowledgedSequence = lastAck;
-                        pendingInputs = pendingInputs.filter(input => input.seq > lastAck);
-                    }
-
-                    // Process ball state if present
-                    if (binaryMsg.ballX !== 0 || binaryMsg.ballY !== 0) {
-                        // Use binary message directly.
-                        // It has {ballX, ballY, ballVx, ballVy} as expected by handleBallEvent's binary path.
-                        // It has NO 't' property, so handleBallEvent will use current time (dt=0), ensuring snap.
-                        // Periodic updates NEVER take authority.
-                        handleBallEvent(binaryMsg, false);
-                    }
-
-                    return; // Binary packet fully processed
-                }
-
-                if (binaryMsg.type === MSG_PING) {
-                    if (binaryMsg.t) timeSync.handlePing({ t: binaryMsg.t });
-                    return;
-                }
-
-                if (binaryMsg.type === MSG_PONG) {
-                    // Construct pseudo-msg for TimeSync.handlePong which expects {origT, t}
-                    // But decoder gives {t, origT} directly if present.
-                    // TimeSync.handlePong expects 'msg' object with properties.
-                    if (binaryMsg.origT) timeSync.handlePong(binaryMsg);
-                    return;
-                }
-
-                if (binaryMsg.type === MSG_CONNECT) {
-                    if (binaryMsg.rand !== undefined) {
-                        remoteRandomNumber = binaryMsg.rand;
-                        if (binaryMsg.sid) remotePlayerAddress = binaryMsg.sid; // Save remote session ID
-                    }
-
-                    // Reply with Connect (fire and forget)
+            if (binaryMsg.type === MSG_STATE) {
+                // If we receive state but aren't connected, we might have missed the handshake.
+                // Aggressively send CONNECT to prompt the other side to reply.
+                // THROTTLED: Only send once per second to avoid packet storm.
+                const now = Date.now();
+                if (!connectionEstablished && now - lastWakeUpSent > 1000) {
                     SpixiAppSdk.sendNetworkData(encodeConnectPacket(sessionId, myRandomNumber));
-                    lastDataSent = SpixiTools.getTimestamp();
-
-                    if (!connectionEstablished && remoteRandomNumber !== null) {
-                        handleConnectionEstablished();
-                    }
-                    return;
+                    lastWakeUpSent = now;
                 }
 
-                if (binaryMsg.type === MSG_LAUNCH) {
-                    if (!gameState.isBallOwner) {
-                        document.getElementById('shootBtn').style.display = 'none';
-                        document.getElementById('status-text').textContent = 'Game On!';
-                        // handleBallEvent expects msg.b OR msg.x/y... 
-                        // decoder returns flat result: timestamp, ballX, ballY, etc.
-                        // Adapt for handleBallEvent:
-                        // LAUNCH -> Take Authority (Start simulating)
-                        handleBallEvent(binaryMsg, true);
-                    }
-                    return;
+                // Process binary state packet
+                const frame = binaryMsg.frame;
+                const paddleY = binaryMsg.paddleY;
+                const seq = binaryMsg.seq;
+                const lastAck = binaryMsg.lastAck;
+
+                // ALWAYS update remote paddle - add to interpolation buffer
+                // Paddle position is stateless and doesn't need ordering guarantees.
+                addToRemotePaddleBuffer(paddleY);
+                remotePaddleTarget = paddleY; // Keep for fallback
+
+                // Validate frame counter for ball/acknowledgment processing
+                if (!validateFrameCounter(frame)) {
+                    return; // Reject out-of-order packet for ball state, but paddle already updated
                 }
 
-                if (binaryMsg.type === MSG_BOUNCE) {
-                    // BOUNCE -> Update state but DO NOT take authority
-                    if (!gameState.isBallOwner) handleBallEvent(binaryMsg, false);
-                    return;
+                // Process acknowledgment - remove confirmed inputs
+                if (lastAck > lastAcknowledgedSequence) {
+                    lastAcknowledgedSequence = lastAck;
+                    pendingInputs = pendingInputs.filter(input => input.seq > lastAck);
                 }
 
-                if (binaryMsg.type === MSG_COLLISION) {
-                    if (binaryMsg.t) {
-                        // COLLISION -> Take Authority (Opponent hit to us)
-                        handleBallEvent(binaryMsg, true);
-
-                        // DYNAMIC AUTHORITY:
-                        // Opponent just hit the ball and relinquished authority.
-                        // We must now take authority to simulate physics and detect our own collision.
-                        gameState.hasActiveBallAuthority = true;
-
-                        // Remote collision validation...
-                        processRetroactiveCollision(binaryMsg.t, binaryMsg.frame, binaryMsg.seq, {
-                            x: binaryMsg.ballX,
-                            y: binaryMsg.ballY,
-                            vx: binaryMsg.ballVx,
-                            vy: binaryMsg.ballVy
-                        });
-                    }
-                    return;
+                // Process ball state if present
+                if (binaryMsg.ballX !== 0 || binaryMsg.ballY !== 0) {
+                    // Use binary message directly.
+                    // It has {ballX, ballY, ballVx, ballVy} as expected by handleBallEvent's binary path.
+                    // It has NO 't' property, so handleBallEvent will use current time (dt=0), ensuring snap.
+                    // Periodic updates NEVER take authority.
+                    handleBallEvent(binaryMsg, false);
                 }
 
-                if (binaryMsg.type === MSG_LIVES) {
-                    if (!gameState.isBallOwner) {
-                        gameState.localPaddle.lives = binaryMsg.remote;
-                        gameState.remotePaddle.lives = binaryMsg.local;
-                        updateLivesDisplay();
-                    }
-                    return;
-                }
-
-                if (binaryMsg.type === MSG_END) {
-                    if (!gameState.gameEnded) {
-                        gameState.localPaddle.lives = binaryMsg.remote;
-                        gameState.remotePaddle.lives = binaryMsg.local;
-                        endGame(gameState.localPaddle.lives > 0);
-                    }
-                    return;
-                }
-
-                if (binaryMsg.type === MSG_FULL_RESET) {
-                    performFullReset();
-                    return;
-                }
-
-                if (binaryMsg.type === MSG_EXIT) {
-                    handleOpponentDisconnect();
-                    return;
-                }
-
-                if (binaryMsg.type === MSG_CHAT) {
-                    if (binaryMsg.text) addChatMessage(binaryMsg.text, false);
-                    return;
-                }
-
+                return; // Binary packet fully processed
             }
 
-            /*
-                // JSON protocol removed. all messages are now binary.
-                // Keeping empty block or removing entirely. 
-            */
+            if (binaryMsg.type === MSG_PING) {
+                if (binaryMsg.t) timeSync.handlePing({ t: binaryMsg.t });
+                return;
+            }
 
+            if (binaryMsg.type === MSG_PONG) {
+                // Construct pseudo-msg for TimeSync.handlePong which expects {origT, t}
+                // But decoder gives {t, origT} directly if present.
+                // TimeSync.handlePong expects 'msg' object with properties.
+                if (binaryMsg.origT) timeSync.handlePong(binaryMsg);
+                return;
+            }
+
+            if (binaryMsg.type === MSG_CONNECT) {
+                if (binaryMsg.rand !== undefined) {
+                    remoteRandomNumber = binaryMsg.rand;
+                    if (binaryMsg.sid) remotePlayerAddress = binaryMsg.sid; // Save remote session ID
+                }
+
+                // Reply with Connect (fire and forget)
+                SpixiAppSdk.sendNetworkData(encodeConnectPacket(sessionId, myRandomNumber));
+                lastDataSent = SpixiTools.getTimestamp();
+
+                if (!connectionEstablished && remoteRandomNumber !== null) {
+                    handleConnectionEstablished();
+                }
+                return;
+            }
+
+            if (binaryMsg.type === MSG_LAUNCH) {
+                if (!gameState.isBallOwner) {
+                    document.getElementById('shootBtn').style.display = 'none';
+                    document.getElementById('status-text').textContent = 'Game On!';
+                    // handleBallEvent expects msg.b OR msg.x/y... 
+                    // decoder returns flat result: timestamp, ballX, ballY, etc.
+                    // Adapt for handleBallEvent:
+                    // LAUNCH -> Take Authority (Start simulating)
+                    handleBallEvent(binaryMsg, true);
+                }
+                return;
+            }
+
+            if (binaryMsg.type === MSG_BOUNCE) {
+                // BOUNCE -> Update state but DO NOT take authority
+                if (!gameState.isBallOwner) handleBallEvent(binaryMsg, false);
+                return;
+            }
+
+            if (binaryMsg.type === MSG_COLLISION) {
+                if (binaryMsg.t) {
+                    // COLLISION -> Take Authority (Opponent hit to us)
+                    handleBallEvent(binaryMsg, true);
+
+                    // DYNAMIC AUTHORITY:
+                    // Opponent just hit the ball and relinquished authority.
+                    // We must now take authority to simulate physics and detect our own collision.
+                    gameState.hasActiveBallAuthority = true;
+
+                    // Remote collision validation...
+                    processRetroactiveCollision(binaryMsg.t, binaryMsg.frame, binaryMsg.seq, {
+                        x: binaryMsg.ballX,
+                        y: binaryMsg.ballY,
+                        vx: binaryMsg.ballVx,
+                        vy: binaryMsg.ballVy
+                    });
+                }
+                return;
+            }
+
+            if (binaryMsg.type === MSG_LIVES) {
+                if (!gameState.isBallOwner) {
+                    gameState.localPaddle.lives = binaryMsg.remote;
+                    gameState.remotePaddle.lives = binaryMsg.local;
+                    updateLivesDisplay();
+                }
+                return;
+            }
+
+            if (binaryMsg.type === MSG_END) {
+                if (!gameState.gameEnded) {
+                    gameState.localPaddle.lives = binaryMsg.remote;
+                    gameState.remotePaddle.lives = binaryMsg.local;
+                    endGame(gameState.localPaddle.lives > 0);
+                }
+                return;
+            }
+
+            if (binaryMsg.type === MSG_FULL_RESET) {
+                performFullReset();
+                return;
+            }
+
+            if (binaryMsg.type === MSG_EXIT) {
+                handleOpponentDisconnect();
+                return;
+            }
+
+            if (binaryMsg.type === MSG_CHAT) {
+                if (binaryMsg.text) addChatMessage(binaryMsg.text, false);
+                return;
+            }
+
+        }
+
+        /*
+            // JSON protocol removed. all messages are now binary.
+            // Keeping empty block or removing entirely. 
+        */
+
+    } catch (e) {
+        console.error("Error parsing network data:", e);
+    }
+};
+
+SpixiAppSdk.onStorageData = function (key, value) {
+    // Storage is only used to save final game state
+    // Don't restore old game state on startup - always start fresh
+    if (value !== 'null') {
+        try {
+            const savedState = JSON.parse(atob(value));
+            // Ignore saved state - we always want to start a new game
+            console.log("Previous game state found but ignored - starting fresh");
         } catch (e) {
-            console.error("Error parsing network data:", e);
-        }
-    };
-
-    SpixiAppSdk.onStorageData = function (key, value) {
-        // Storage is only used to save final game state
-        // Don't restore old game state on startup - always start fresh
-        if (value !== 'null') {
-            try {
-                const savedState = JSON.parse(atob(value));
-                // Ignore saved state - we always want to start a new game
-                console.log("Previous game state found but ignored - starting fresh");
-            } catch (e) {
-                console.error("Error parsing saved state:", e);
-            }
-        }
-    };
-
-    // ==========================================
-    // CHAT & STATUS LOGIC
-    // ==========================================
-
-    function setupChatUI() {
-        // Chat Toggle Buttons
-        // specific buttons only now - waiting screen chat removed
-        const gameOverChatBtn = document.getElementById('gameOverChatBtn');
-        if (gameOverChatBtn) gameOverChatBtn.addEventListener('click', toggleChat);
-
-        // In-Game Floating Button
-        const inGameChatBtn = document.getElementById('inGameChatBtn');
-        if (inGameChatBtn) inGameChatBtn.addEventListener('click', toggleChat);
-
-        // Popup Notification Click
-        const popup = document.getElementById('chatNotificationPopup');
-        if (popup) popup.addEventListener('click', toggleChat);
-
-        // Close Chat Button
-        const closeBtn = document.getElementById('closeChatBtn');
-        if (closeBtn) closeBtn.addEventListener('click', toggleChat);
-
-        // Send Message Button
-        const sendBtn = document.getElementById('sendChatBtn');
-        if (sendBtn) sendBtn.addEventListener('click', sendChatMessage);
-
-        // Input Enter Key
-        const input = document.getElementById('chatInput');
-        if (input) {
-            input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') sendChatMessage();
-            });
-        }
-
-        // Exit Button
-        const exitBtn = document.getElementById('waitingExitBtn');
-        if (exitBtn) {
-            exitBtn.addEventListener('click', () => {
-                SpixiAppSdk.back(); // Use proper SDK back method
-            });
-        }
-
-        // Initial Status Broadcast
-        sendPlayerStatus('lobby');
-    }
-
-    function toggleChat() {
-        const chatPanel = document.getElementById('chat-panel');
-        const waitingBadge = document.getElementById('waitingChatBadge');
-        const gameOverBadge = document.getElementById('gameOverChatBadge');
-        const inGameBadge = document.getElementById('inGameChatBadge');
-
-        isChatOpen = !isChatOpen;
-
-        if (isChatOpen) {
-            chatPanel.classList.remove('chat-hidden');
-            checkUnreadMessages = 0;
-            waitingBadge.classList.add('hidden');
-            gameOverBadge.classList.add('hidden');
-            if (inGameBadge) inGameBadge.classList.add('hidden');
-            setTimeout(() => document.getElementById('chatInput').focus(), 300);
-        } else {
-            chatPanel.classList.add('chat-hidden');
+            console.error("Error parsing saved state:", e);
         }
     }
+};
 
-    let chatPopupTimer = null;
+// ==========================================
+// CHAT & STATUS LOGIC
+// ==========================================
 
-    function sendChatMessage() {
-        const input = document.getElementById('chatInput');
-        const text = input.value.trim();
-        if (!text) return;
+function setupChatUI() {
+    // Chat Toggle Buttons
+    // specific buttons only now - waiting screen chat removed
+    const gameOverChatBtn = document.getElementById('gameOverChatBtn');
+    if (gameOverChatBtn) gameOverChatBtn.addEventListener('click', toggleChat);
 
-        // Send to remote
-        SpixiAppSdk.sendNetworkData(encodeStringPacket(MSG_CHAT, text));
+    // In-Game Floating Button
+    const inGameChatBtn = document.getElementById('inGameChatBtn');
+    if (inGameChatBtn) inGameChatBtn.addEventListener('click', toggleChat);
 
-        // Add to local UI
-        addChatMessage(text, true);
-        input.value = '';
-    }
+    // Popup Notification Click
+    const popup = document.getElementById('chatNotificationPopup');
+    if (popup) popup.addEventListener('click', toggleChat);
 
-    function addChatMessage(text, isMine) {
-        const container = document.getElementById('chatMessages');
-        const bubble = document.createElement('div');
-        bubble.className = `message-bubble ${isMine ? 'mine' : 'theirs'}`;
-        bubble.textContent = text;
-        container.appendChild(bubble);
-        container.scrollTop = container.scrollHeight;
+    // Close Chat Button
+    const closeBtn = document.getElementById('closeChatBtn');
+    if (closeBtn) closeBtn.addEventListener('click', toggleChat);
 
-        if (!isMine && !isChatOpen) {
-            checkUnreadMessages++;
-            updateChatBadges();
-            showChatNotification(text);
-        }
-    }
+    // Send Message Button
+    const sendBtn = document.getElementById('sendChatBtn');
+    if (sendBtn) sendBtn.addEventListener('click', sendChatMessage);
 
-    function showChatNotification(text) {
-        const popup = document.getElementById('chatNotificationPopup');
-        const popupText = document.getElementById('notificationText');
-
-        if (popup && popupText) {
-            popupText.textContent = text;
-            popup.classList.remove('hidden');
-
-            // Clear previous timer if exists to prevent early closing
-            if (chatPopupTimer) clearTimeout(chatPopupTimer);
-
-            chatPopupTimer = setTimeout(() => {
-                popup.classList.add('hidden');
-                chatPopupTimer = null;
-            }, 3000);
-        }
-    }
-
-    function updateChatBadges() {
-        const count = checkUnreadMessages > 9 ? '9+' : checkUnreadMessages;
-        ['waitingChatBadge', 'gameOverChatBadge', 'inGameChatBadge'].forEach(id => {
-            const badge = document.getElementById(id);
-            if (badge) {
-                badge.textContent = count;
-                badge.classList.remove('hidden');
-            }
+    // Input Enter Key
+    const input = document.getElementById('chatInput');
+    if (input) {
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendChatMessage();
         });
     }
 
-    function sendPlayerStatus(status) {
-        localPlayerStatus = status;
-        SpixiAppSdk.sendNetworkData(encodeStringPacket(MSG_STATUS, status));
+    // Exit Button
+    const exitBtn = document.getElementById('waitingExitBtn');
+    if (exitBtn) {
+        exitBtn.addEventListener('click', () => {
+            SpixiAppSdk.back(); // Use proper SDK back method
+        });
     }
 
-    function updateOpponentStatusUI(status) {
-        const pill = document.getElementById('gameOverOpponentStatus');
-        // UI element might be removed, so check first
-        if (pill) {
-            const dot = pill.querySelector('.status-dot');
-            const text = pill.querySelector('.status-text');
-
-            pill.classList.remove('hidden');
-            remotePlayerStatus = status;
-
-            if (status === 'playing') {
-                dot.classList.add('ready');
-                text.textContent = "Opponent is Playing";
-            } else if (status === 'lobby') {
-                dot.classList.remove('ready');
-                text.textContent = "Opponent is in Lobby";
-            } else {
-                dot.classList.remove('ready');
-                text.textContent = "Opponent Status Unknown";
-            }
-        } else {
-            // Just track state internally if UI is gone
-            remotePlayerStatus = status;
-        }
-    }
-
-    // Helper to check if binary
-    function isBinaryPacket(str) {
-        // Basic heuristic: check if it looks like base64 and starts with known types
-        if (typeof str !== 'string') return false;
-        // Check for msg type byte at start (base64 encoded first char)
-        // 1 (MSG_STATE) -> A...
-        // 2 (MSG_COLLISION) -> A... (wait, base64 encoding shifts. Need safe check)
-        // Actually, simple JSON check is safer.
-        return !str.trim().startsWith('{');
-    }
-
-    // Start the app on load
-    window.onload = SpixiAppSdk.fireOnLoad;
+    // Initial Status Broadcast
+    sendPlayerStatus('lobby');
 }
+
+function toggleChat() {
+    const chatPanel = document.getElementById('chat-panel');
+    const waitingBadge = document.getElementById('waitingChatBadge');
+    const gameOverBadge = document.getElementById('gameOverChatBadge');
+    const inGameBadge = document.getElementById('inGameChatBadge');
+
+    isChatOpen = !isChatOpen;
+
+    if (isChatOpen) {
+        chatPanel.classList.remove('chat-hidden');
+        checkUnreadMessages = 0;
+        waitingBadge.classList.add('hidden');
+        gameOverBadge.classList.add('hidden');
+        if (inGameBadge) inGameBadge.classList.add('hidden');
+        setTimeout(() => document.getElementById('chatInput').focus(), 300);
+    } else {
+        chatPanel.classList.add('chat-hidden');
+    }
+}
+
+let chatPopupTimer = null;
+
+function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text) return;
+
+    // Send to remote
+    SpixiAppSdk.sendNetworkData(encodeStringPacket(MSG_CHAT, text));
+
+    // Add to local UI
+    addChatMessage(text, true);
+    input.value = '';
+}
+
+function addChatMessage(text, isMine) {
+    const container = document.getElementById('chatMessages');
+    const bubble = document.createElement('div');
+    bubble.className = `message-bubble ${isMine ? 'mine' : 'theirs'}`;
+    bubble.textContent = text;
+    container.appendChild(bubble);
+    container.scrollTop = container.scrollHeight;
+
+    if (!isMine && !isChatOpen) {
+        checkUnreadMessages++;
+        updateChatBadges();
+        showChatNotification(text);
+    }
+}
+
+function showChatNotification(text) {
+    const popup = document.getElementById('chatNotificationPopup');
+    const popupText = document.getElementById('notificationText');
+
+    if (popup && popupText) {
+        popupText.textContent = text;
+        popup.classList.remove('hidden');
+
+        // Clear previous timer if exists to prevent early closing
+        if (chatPopupTimer) clearTimeout(chatPopupTimer);
+
+        chatPopupTimer = setTimeout(() => {
+            popup.classList.add('hidden');
+            chatPopupTimer = null;
+        }, 3000);
+    }
+}
+
+function updateChatBadges() {
+    const count = checkUnreadMessages > 9 ? '9+' : checkUnreadMessages;
+    ['waitingChatBadge', 'gameOverChatBadge', 'inGameChatBadge'].forEach(id => {
+        const badge = document.getElementById(id);
+        if (badge) {
+            badge.textContent = count;
+            badge.classList.remove('hidden');
+        }
+    });
+}
+
+function sendPlayerStatus(status) {
+    localPlayerStatus = status;
+    SpixiAppSdk.sendNetworkData(encodeStringPacket(MSG_STATUS, status));
+}
+
+function updateOpponentStatusUI(status) {
+    const pill = document.getElementById('gameOverOpponentStatus');
+    // UI element might be removed, so check first
+    if (pill) {
+        const dot = pill.querySelector('.status-dot');
+        const text = pill.querySelector('.status-text');
+
+        pill.classList.remove('hidden');
+        remotePlayerStatus = status;
+
+        if (status === 'playing') {
+            dot.classList.add('ready');
+            text.textContent = "Opponent is Playing";
+        } else if (status === 'lobby') {
+            dot.classList.remove('ready');
+            text.textContent = "Opponent is in Lobby";
+        } else {
+            dot.classList.remove('ready');
+            text.textContent = "Opponent Status Unknown";
+        }
+    } else {
+        // Just track state internally if UI is gone
+        remotePlayerStatus = status;
+    }
+}
+
+// Helper to check if binary
+function isBinaryPacket(str) {
+    // Basic heuristic: check if it looks like base64 and starts with known types
+    if (typeof str !== 'string') return false;
+    // Check for msg type byte at start (base64 encoded first char)
+    // 1 (MSG_STATE) -> A...
+    // 2 (MSG_COLLISION) -> A... (wait, base64 encoding shifts. Need safe check)
+    // Actually, simple JSON check is safer.
+    return !str.trim().startsWith('{');
+}
+
+// Start the app on load
+window.onload = SpixiAppSdk.fireOnLoad;
