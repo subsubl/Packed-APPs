@@ -1,0 +1,11 @@
+id=com.baracuda.spixi.survivalmanual
+name=SurvivalManual
+version=1.0.2
+author=baracuda
+description=Survival Manual for Spixi
+keywords=survival,manual,guide
+main=index.html
+icon=icon.png
+capabilities=singleUser
+minUsers=1
+maxUsers=1

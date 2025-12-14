@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coin Flip</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <button id="menuBtn" class="menu-btn" title="Menu">☰</button>
+            <h1 class="title">🪙 Coin Flip</h1>
+            <button id="exitBtn" class="exit-btn" title="Exit">✕</button>
+        </header>
+
+        <!-- Connection Status -->
+        <div id="connectionStatus" class="status-badge">
+            <span class="status-dot"></span>
+            <span id="statusText">Connecting...</span>
+        </div>
+
+        <!-- Game States Container -->
+        <div class="game-container">
+            
+            <!-- Betting Phase -->
+            <div id="bettingPhase" class="phase active">
+                <div class="phase-title">Place Your Bet</div>
+                
+                <div class="bet-section">
+                    <label for="betAmount">Bet Amount (IXI)</label>
+                    <div class="input-group">
+                        <input type="number" id="betAmount" min="1" step="0.01" placeholder="Enter amount (min 1 IXI)">
+                        <span class="input-suffix">IXI</span>
+                    </div>
+                </div>
+
+                <div class="choice-section">
+                    <label>Choose Side</label>
+                    <div class="choice-buttons">
+                        <button class="choice-btn" data-choice="heads">
+                            <span class="coin-icon">👑</span>
+                            <span>HEADS</span>
+                        </button>
+                        <button class="choice-btn" data-choice="tails">
+                            <span class="coin-icon">🦅</span>
+                            <span>TAILS</span>
+                        </button>
+                    </div>
+                </div>
+
+                <button id="placeBetBtn" class="primary-btn" disabled>Place Bet</button>
+            </div>
+
+            <!-- Waiting Phase -->
+            <div id="waitingPhase" class="phase">
+                <div class="phase-title">Waiting for Opponent</div>
+                
+                <div class="waiting-content">
+                    <div class="spinner"></div>
+                    <p class="waiting-text">Your bet has been placed</p>
+                    
+                    <div class="bet-summary">
+                        <div class="summary-item">
+                            <span class="summary-label">Your Bet:</span>
+                            <span class="summary-value" id="yourBetDisplay">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Your Choice:</span>
+                            <span class="summary-value" id="yourChoiceDisplay">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ready to Flip Phase -->
+            <div id="readyPhase" class="phase">
+                <div class="phase-title">Ready to Flip!</div>
+                
+                <div class="ready-content">
+                    <div class="bet-comparison">
+                        <div class="player-bet">
+                            <div class="player-label">You</div>
+                            <div class="bet-amount" id="yourBetFinal">-</div>
+                            <div class="choice-badge" id="yourChoiceFinal">-</div>
+                        </div>
+                        <div class="vs-divider">VS</div>
+                        <div class="player-bet">
+                            <div class="player-label">Opponent</div>
+                            <div class="bet-amount" id="opponentBetFinal">-</div>
+                            <div class="choice-badge" id="opponentChoiceFinal">-</div>
+                        </div>
+                    </div>
+
+                    <div class="agreed-bet">
+                        <span>Agreed Bet:</span>
+                        <strong id="agreedBetAmount">-</strong>
+                    </div>
+
+                    <div id="flipperInfo" class="flipper-info"></div>
+                    
+                    <button id="flipCoinBtn" class="primary-btn flip-btn" style="display: none;">
+                        🪙 Flip Coin
+                    </button>
+
+                    <div id="waitingFlip" class="waiting-flip" style="display: none;">
+                        <div class="spinner small"></div>
+                        <p>Waiting for opponent to flip...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flipping Phase -->
+            <div id="flippingPhase" class="phase">
+                <div class="phase-title">Flipping...</div>
+                
+                <div class="flip-content">
+                    <div id="coinAnimation" class="coin-container">
+                        <div class="coin">
+                            <div class="coin-side heads">👑</div>
+                            <div class="coin-side tails">🦅</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Result Phase -->
+            <div id="resultPhase" class="phase">
+                <div id="resultTitle" class="phase-title">-</div>
+                
+                <div class="result-content">
+                    <div id="coinResult" class="coin-result">
+                        <div class="result-coin">
+                            <span id="resultCoinIcon">-</span>
+                        </div>
+                        <div id="resultCoinText" class="result-text">-</div>
+                    </div>
+
+                    <div id="winnerInfo" class="winner-info">-</div>
+
+                    <div id="transactionSection" class="transaction-section" style="display: none;">
+                        <div class="transaction-info">
+                            <p>You need to send <strong id="transactionAmount">-</strong> to:</p>
+                            <div class="address-box" id="winnerAddress">-</div>
+                            <p class="payment-note">Click below to open your wallet and complete the payment.</p>
+                        </div>
+                        <button id="sendPaymentBtn" class="primary-btn">Open Wallet to Pay</button>
+                    </div>
+
+                    <button id="playAgainBtn" class="secondary-btn">Play Again</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Side Menu -->
+    <div id="sideMenu" class="side-menu">
+        <div class="side-menu-content">
+            <div class="side-menu-header">
+                <h2>Menu</h2>
+                <button id="closeMenuBtn" class="close-menu-btn">✕</button>
+            </div>
+            
+            <div class="side-menu-body">
+                <div class="menu-section">
+                    <h3>Rules</h3>
+                    <ul class="rules-list">
+                        <li>Minimum bet: 1 IXI</li>
+                        <li>Both players must place bets</li>
+                        <li>Lower bet amount is used</li>
+                        <li>Lower bet player flips the coin</li>
+                        <li>Winner receives double the bet amount</li>
+                    </ul>
+                </div>
+                
+                <div class="menu-section">
+                    <h3>About</h3>
+                    <p class="version-info">Version 1.0.2</p>
+                    <p class="publisher-info">Published by Baracuda</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="menuOverlay" class="menu-overlay"></div>
+
+    <script src="js/spixi-app-sdk.js"></script>
+    <script src="js/spixi-tools.js"></script>
+    <script src="js/coinflip.js"></script>
+</body>
+</html>

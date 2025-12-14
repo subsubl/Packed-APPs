@@ -1,0 +1,122 @@
+[
+  {
+    "id": "com.baracuda.spixi.coinflip",
+    "name": "Coin Flip",
+    "version": "1.0.2",
+    "icon": "📱",
+    "description": "Coin Flip mini app",
+    "url": "apps/com.baracuda.spixi.coinflip/app/index.html",
+    "downloadUrl": "packed/coin-flip.zip",
+    "sourceUrl": "https://github.com/ixian-platform/Spixi-Mini-Apps/tree/master/apps/com.baracuda.spixi.coinflip"
+  },
+  {
+    "id": "com.baracuda.spixi.dentistgame",
+    "name": "Dentist Mystery",
+    "version": "3.1.1",
+    "icon": "📱",
+    "description": "A thrilling detective mystery adventure!",
+    "url": "apps/com.baracuda.spixi.dentistgame/app/index.html",
+    "downloadUrl": "packed/dentist-mystery.zip",
+    "sourceUrl": "https://github.com/ixian-platform/Spixi-Mini-Apps/tree/master/apps/com.baracuda.spixi.dentistgame"
+  },
+  {
+    "id": "com.baracuda.spixi.doom",
+    "name": "DOOM",
+    "version": "1.0.4",
+    "icon": "👾",
+    "description": "DOOM mini app",
+    "url": "apps/com.baracuda.spixi.doom/app/index.html",
+    "downloadUrl": "packed/doom.zip",
+    "sourceUrl": "https://github.com/ixian-platform/Spixi-Mini-Apps/tree/master/apps/com.baracuda.spixi.doom"
+  },
+  {
+    "id": "com.baracuda.spixi.kalker",
+    "name": "Kalker",
+    "version": "1.0.0",
+    "icon": "🧮",
+    "description": "Kalker mini app",
+    "url": "apps/com.baracuda.spixi.kalker/app/index.html",
+    "downloadUrl": "packed/kalker.zip",
+    "sourceUrl": "https://github.com/ixian-platform/Spixi-Mini-Apps/tree/master/apps/com.baracuda.spixi.kalker"
+  },
+  {
+    "id": "com.baracuda.spixi.pong",
+    "name": "Pong",
+    "version": "3.10.12",
+    "icon": "🏓",
+    "description": "Pong mini app",
+    "url": "apps/com.baracuda.spixi.pong/app/index.html",
+    "downloadUrl": "packed/pong.zip",
+    "sourceUrl": "https://github.com/ixian-platform/Spixi-Mini-Apps/tree/master/apps/com.baracuda.spixi.pong"
+  },
+  {
+    "id": "com.baracuda.spixi.survivalmanual",
+    "name": "SurvivalManual",
+    "version": "1.0.2",
+    "icon": "📖",
+    "description": "Survival Manual for Spixi",
+    "url": "apps/com.baracuda.spixi.survivalmanual/app/index.html",
+    "downloadUrl": "packed/survivalmanual.zip",
+    "sourceUrl": "https://github.com/ixian-platform/Spixi-Mini-Apps/tree/master/apps/com.baracuda.spixi.survivalmanual"
+  },
+  {
+    "id": "com.ixilabs.spixi.auth",
+    "name": "Spixi Authenticator",
+    "version": "1.0.0",
+    "icon": "🔐",
+    "description": "Spixi Authenticator mini app",
+    "url": "apps/com.ixilabs.spixi.auth/app/index.html",
+    "downloadUrl": "packed/spixi-authenticator.zip",
+    "sourceUrl": "https://github.com/ixian-platform/Spixi-Mini-Apps/tree/master/apps/com.ixilabs.spixi.auth"
+  },
+  {
+    "id": "com.ixilabs.spixi.doomwasm",
+    "name": "DoomWASM",
+    "version": "1.0.0",
+    "icon": "👾",
+    "description": "DoomWASM mini app",
+    "url": "apps/com.ixilabs.spixi.doomwasm/app/index.html",
+    "downloadUrl": "packed/doomwasm.zip",
+    "sourceUrl": "https://github.com/ixian-platform/Spixi-Mini-Apps/tree/master/apps/com.ixilabs.spixi.doomwasm"
+  },
+  {
+    "id": "com.ixilabs.spixi.gate-control",
+    "name": "Gate Control",
+    "version": "1.0.2",
+    "icon": "🚪",
+    "description": "Gate Control mini app",
+    "url": "apps/com.ixilabs.spixi.gate-control/app/index.html",
+    "downloadUrl": "packed/gate-control.zip",
+    "sourceUrl": "https://github.com/ixian-platform/Spixi-Mini-Apps/tree/master/apps/com.ixilabs.spixi.gate-control"
+  },
+  {
+    "id": "com.ixilabs.spixi.mini-apps-test",
+    "name": "Mini Apps Test",
+    "version": "1.1.0",
+    "icon": "🧪",
+    "description": "Mini Apps Test mini app",
+    "url": "apps/com.ixilabs.spixi.mini-apps-test/app/index.html",
+    "downloadUrl": "packed/mini-apps-test.zip",
+    "sourceUrl": "https://github.com/ixian-platform/Spixi-Mini-Apps/tree/master/apps/com.ixilabs.spixi.mini-apps-test"
+  },
+  {
+    "id": "com.ixilabs.spixi.tictactoe",
+    "name": "Tic-Tac-Toe",
+    "version": "1.0.6",
+    "icon": "📱",
+    "description": "Tic-Tac-Toe mini app",
+    "url": "apps/com.ixilabs.spixi.tictactoe/app/index.html",
+    "downloadUrl": "packed/tic-tac-toe.zip",
+    "sourceUrl": "https://github.com/ixian-platform/Spixi-Mini-Apps/tree/master/apps/com.ixilabs.spixi.tictactoe"
+  },
+  {
+    "id": "com.ixilabs.spixi.video-test",
+    "name": "Spixi Video Test",
+    "version": "0.1.0",
+    "icon": "📹",
+    "description": "Spixi Video Test mini app",
+    "url": "apps/com.ixilabs.spixi.video-test/app/index.html",
+    "downloadUrl": "packed/spixi-video-test.zip",
+    "sourceUrl": "https://github.com/ixian-platform/Spixi-Mini-Apps/tree/master/apps/com.ixilabs.spixi.video-test"
+  }
+]

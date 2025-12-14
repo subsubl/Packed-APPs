@@ -1,0 +1,37 @@
+/* Hack Font */
+@font-face {
+    font-family: 'Hack';
+    src: url('fonts/hack-regular-subset.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Hack';
+    src: url('fonts/hack-bold-subset.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Hack';
+    src: url('fonts/hack-italic-subset.woff2') format('woff2');
+    font-weight: 400;
+    font-style: italic;
+}
+
+@font-face {
+    font-family: 'Hack';
+    src: url('fonts/hack-bolditalic-subset.woff2') format('woff2');
+    font-weight: 700;
+    font-style: italic;
+}
+
+/* Share Tech Mono */
+@font-face {
+    font-family: 'Share Tech Mono';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('fonts/ShareTechMono-Regular.ttf') format('truetype');
+}

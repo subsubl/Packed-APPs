@@ -1,0 +1,13 @@
+caVersion = 0
+id = com.baracuda.spixi.survivalmanual
+publisher = 
+name = SurvivalManual
+version = 1.0.2
+capabilities = singleUser
+image = survivalmanual.png
+minUsers = 1
+maxUsers = 1
+protocols = 
+contentUrl = survivalmanual.zip
+checksum = a52f8e6d246cbdf68c1ff077f7d4a302dd5f1a39fc0814f0d8f2566f1100773d
+contentSize = 2857751

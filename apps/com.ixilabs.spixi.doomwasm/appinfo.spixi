@@ -1,0 +1,7 @@
+caVersion = 0
+id = com.ixilabs.spixi.doomwasm
+publisher = IXI Labs
+name = DoomWASM
+version = 1.0.0
+capabilities = 
+maxUsers = 1

@@ -1,0 +1,13 @@
+caVersion = 0
+id = com.baracuda.spixi.kalker
+publisher = Baracuda
+name = Kalker
+version = 1.0.0
+capabilities = multiUser
+image = kalker.png
+minUsers = 1
+maxUsers = 2
+protocols = 
+contentUrl = kalker.zip
+checksum = d378d637779d35d416b4870903d1fdda15d937523cc94639e167b5f5fb426f84
+contentSize = 1302044

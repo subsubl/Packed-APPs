@@ -1,0 +1,13 @@
+caVersion = 0
+id = com.baracuda.spixi.dentistgame
+publisher = 
+name = The Case of the Missing Molar
+version = 2.2.1
+capabilities = singleUser
+image = the-case-of-the-missing-molar.png
+minUsers = 1
+maxUsers = 1
+protocols = 
+contentUrl = the-case-of-the-missing-molar.zip
+checksum = 329694391009dbf80c3c0c4bf33ebb4b25a1083ffe006c6bf19059d45063f1b2
+contentSize = 3081275

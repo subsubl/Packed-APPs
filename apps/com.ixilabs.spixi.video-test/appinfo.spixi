@@ -1,0 +1,6 @@
+caVersion = 0
+id = com.ixilabs.spixi.video-test
+publisher = IXI Labs
+name = Spixi Video Test
+version = 0.1.0
+capabilities = singleUser

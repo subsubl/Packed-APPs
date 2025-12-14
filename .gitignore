@@ -1,0 +1,15 @@
+# Node dependencies
+node_modules/
+
+# Logs
+*.log
+server*.log
+npm-debug.log*
+
+# Temporary files
+.DS_Store
+thumbs.db
+
+# Editor settings
+.vscode/
+.idea/
