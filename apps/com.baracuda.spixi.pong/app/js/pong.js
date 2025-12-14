@@ -1086,7 +1086,7 @@ function launchBall() {
         playLaunchSound();
 
         gameState.waitingForServe = false;
-        gameState.hasActiveBallAuthority = true;
+        // Host-Authority: Ball owner always simulates ball
 
         // Initialize ball velocity - shoot toward opponent based on MY side
         const angle = (Math.random() * Math.PI / 3) - Math.PI / 6;
@@ -1131,80 +1131,40 @@ function gameLoop(timestamp) {
             }
         }, 0);
 
-        // Calculate frame delta for performance monitoring
+        // Calculate frame delta
         if (!lastFrameTime) lastFrameTime = timestamp;
         const deltaTime = timestamp - lastFrameTime;
         lastFrameTime = timestamp;
-
-        // Monitor performance (adaptive network rate)
-        if (deltaTime > 0) {
-            frameTimeAccumulator += deltaTime;
-            framesMeasured++;
-
-            if (framesMeasured >= 60) {
-                const avgFrameTime = frameTimeAccumulator / framesMeasured;
-                // If dropping frames (avg > 20ms, i.e., < 50fps), throttle network
-                if (avgFrameTime > 20) {
-                    currentNetworkRate = NETWORK_RATE_THROTTLED;
-                } else {
-                    // Otherwise use active/idle logic
-                    const ballActive = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
-                    const baseRate = ballActive ? NETWORK_RATE_ACTIVE : NETWORK_RATE_IDLE;
-                    currentNetworkRate = baseRate + networkThrottleDelay;
-                }
-                frameTimeAccumulator = 0;
-                framesMeasured = 0;
-            }
-        }
 
         frameCounter++;
 
         // Save state snapshot for potential rollback
         saveStateSnapshot();
 
-
-
         updatePaddle();
 
         // Update remote paddle with entity interpolation
         updateRemotePaddleInterpolation();
 
-        // Ball movement: Authority determines simulation vs interpolation
-        // Server (ball owner) simulates, client interpolates
-        if (gameState.hasActiveBallAuthority) {
-            // We have authority - simulate ball physics locally
+        // HOST-AUTHORITY MODEL:
+        // Host (ball owner) ALWAYS simulates ball physics
+        // Client just renders the ball position received from host
+        if (gameState.isBallOwner) {
+            // HOST: Simulate ball physics locally
             const ballHasVelocity = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
 
             if (ballHasVelocity) {
-                // Pass deltaTime to updateBall for time-based physics
                 updateBall(deltaTime);
                 checkCollisions();
-
-                // Any player with ball authority checks score
-                // This enables both host AND client to detect missed balls instantly
-                if (gameState.hasActiveBallAuthority) {
-                    checkScore();
-                }
-            } else if (gameState.waitingForServe) {
-                // Ball waiting for serve - keep attached to serving paddle
-                if (gameState.isServer) {
-                    // I'm the server - ball follows my paddle
-                    if (gameState.isBallOwner) {
-                        // I'm on right
-                        gameState.ball.x = CANVAS_WIDTH - 20 - PADDLE_WIDTH - BALL_SIZE;
-                    } else {
-                        // I'm on left
-                        gameState.ball.x = 20 + PADDLE_WIDTH + BALL_SIZE;
-                    }
-                    gameState.ball.y = gameState.localPaddle.y + PADDLE_HEIGHT / 2;
-                }
-                // Non-server: Let network updates control ball pos.
+                checkScore();
+            } else if (gameState.waitingForServe && gameState.isServer) {
+                // Ball waiting for serve - keep attached to my paddle
+                // I'm on right (as host/ball owner)
+                gameState.ball.x = CANVAS_WIDTH - 20 - PADDLE_WIDTH - BALL_SIZE;
+                gameState.ball.y = gameState.localPaddle.y + PADDLE_HEIGHT / 2;
             }
-        } else {
-            // We don't have authority - ALWAYS interpolate toward target
-            // This ensures smooth client-side ball movement even if local velocity is 0
-            updateBallInterpolation(deltaTime);
         }
+        // CLIENT: No ball simulation - just render what host sends
 
         render();
 
@@ -1600,9 +1560,7 @@ function checkScore() {
 function resetBall(autoLaunch = true) {
     // Position ball at serving paddle
     resetBallPosition();
-
-    // Server (last scorer) has authority to launch
-    gameState.hasActiveBallAuthority = gameState.isServer;
+    // Host-Authority: Ball owner always simulates ball
 
     if (autoLaunch && gameState.isServer) {
         // I am serving - auto-launch ball with random angle toward opponent
@@ -2021,144 +1979,43 @@ function updateLivesDisplay() {
         lastDataSent = SpixiTools.getTimestamp();
     }
 
-    function handleBallEvent(msg, isAction = false) {
-        // Extract state
-        let cookedX, cookedY, cookedVx, cookedVy;
+    /**
+     * Handle ball state update from host.
+     * HOST-AUTHORITY MODEL: Client just snaps to host's ball position.
+     */
+    function handleBallEvent(msg) {
+        // Only client (non-ball-owner) processes ball updates
+        if (gameState.isBallOwner) return;
+
+        // Extract state from message
+        let ballX, ballY, ballVx, ballVy;
 
         if (msg.isDecodedBinary) {
-            // Already processed floats. No mirroring.
-            cookedX = msg.ballX;
-            cookedY = msg.ballY;
-            cookedVx = msg.ballVx;
-            cookedVy = msg.ballVy;
+            ballX = msg.ballX;
+            ballY = msg.ballY;
+            ballVx = msg.ballVx;
+            ballVy = msg.ballVy;
         } else {
-            // Fallback or non-decoded input
-            const x = msg.ballX !== undefined ? msg.ballX : (msg.b ? msg.b.x : msg.x);
-            const y = msg.ballY !== undefined ? msg.ballY : (msg.b ? msg.b.y : msg.y);
-            const vx = msg.ballVx !== undefined ? msg.ballVx : (msg.b ? msg.b.vx : msg.vx);
-            const vy = msg.ballVy !== undefined ? msg.ballVy : (msg.b ? msg.b.vy : msg.vy);
-
-            cookedX = x;
-            cookedY = y;
+            ballX = msg.ballX !== undefined ? msg.ballX : (msg.b ? msg.b.x : msg.x);
+            ballY = msg.ballY !== undefined ? msg.ballY : (msg.b ? msg.b.y : msg.y);
+            let vx = msg.ballVx !== undefined ? msg.ballVx : (msg.b ? msg.b.vx : msg.vx);
+            let vy = msg.ballVy !== undefined ? msg.ballVy : (msg.b ? msg.b.vy : msg.vy);
 
             // Check if velocities need scaling (heuristic)
             if (Math.abs(vx) > 50) {
-                cookedVx = vx / 100;
-                cookedVy = vy / 100;
+                ballVx = vx / 100;
+                ballVy = vy / 100;
             } else {
-                cookedVx = vx;
-                cookedVy = vy;
+                ballVx = vx;
+                ballVy = vy;
             }
         }
 
-        const startX = cookedX;
-        const startY = cookedY;
-        const startVx = cookedVx;
-        const startVy = cookedVy;
-
-        // Calculate time delta
-        const now = timeSync.getSyncedTime();
-        const eventTime = msg.t || now;
-        let dt = now - eventTime;
-
-        // Clamp dt
-        if (dt < 0) dt = 0;
-        if (dt > 1000) dt = 1000; // Cap prediction to 1 second
-
-        // 1. Update Shadow Network Ball State
-        gameState.networkBall.x = startX;
-        gameState.networkBall.y = startY;
-        gameState.networkBall.vx = startVx;
-        gameState.networkBall.vy = startVy;
-        gameState.networkBall.lastUpdateTime = eventTime;
-
-        // 2. Dead Reckoning: Fast-forward network ball to CURRENT time
-        // Simulate physics from eventTime -> now
-        const step = 16; // 16ms steps
-        let timeSimulated = 0;
-
-        let predictedX = startX;
-        let predictedY = startY;
-        let predictedVx = startVx;
-        let predictedVy = startVy;
-
-        if (Math.abs(startVx) > 0.01 || Math.abs(startVy) > 0.01) {
-            while (timeSimulated < dt) {
-                const currentStep = Math.min(step, dt - timeSimulated);
-                const ratio = currentStep / 16;
-
-                predictedX += predictedVx * ratio;
-                predictedY += predictedVy * ratio;
-
-                // Simple wall bounces for prediction
-                if (predictedY <= BALL_SIZE / 2) {
-                    predictedY = BALL_SIZE / 2;
-                    predictedVy = -predictedVy;
-                } else if (predictedY >= CANVAS_HEIGHT - BALL_SIZE / 2) {
-                    predictedY = CANVAS_HEIGHT - BALL_SIZE / 2;
-                    predictedVy = -predictedVy;
-                }
-
-                timeSimulated += currentStep;
-            }
-        }
-
-        // 3. Authority & State Application
-        if (isAction) {
-            // ACTION EVENT (Launch/Collision):
-            // Remote player has taken Action -> They have Authority.
-            // We must DROP authority and SNAP to their state to match physics.
-            gameState.hasActiveBallAuthority = false;
-
-            gameState.ball.x = predictedX;
-            gameState.ball.y = predictedY;
-            gameState.ball.vx = predictedVx;
-            gameState.ball.vy = predictedVy;
-            gameState.ballCorrection.x = 0;
-            gameState.ballCorrection.y = 0;
-            // console.log("Remote Action - Yielded Authority & Snapped");
-            return;
-        }
-
-        // PERIODIC UPDATE (Bounce/State):
-        // If we have authority, IGNORE remote updates (prevent fighting/lag).
-        // Exception: If our velocity is zero (waiting), accept update.
-        if (gameState.hasActiveBallAuthority) {
-            return;
-        }
-
-        // If NOT taking authority, use Error Correction (Convergence)
-        // Distance between current local ball and where the network says it should be
-        const dx = predictedX - gameState.ball.x;
-        const dy = predictedY - gameState.ball.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        if (dist > BALL_SNAP_THRESHOLD) {
-            // Too far off (e.g. missed a collision update) -> Snap immediately
-            gameState.ball.x = predictedX;
-            gameState.ball.y = predictedY;
-            gameState.ball.vx = predictedVx;
-            gameState.ball.vy = predictedVy;
-            gameState.ballCorrection.x = 0;
-            gameState.ballCorrection.y = 0;
-        } else {
-            // Small error -> Smooth correction
-            // We set the target correction. The game loop will apply portions of this.
-
-            // Update velocity immediately to match network
-            gameState.ball.vx = predictedVx;
-            gameState.ball.vy = predictedVy;
-
-            // The error we want to eliminate over time
-            gameState.ballCorrection.x = dx;
-            gameState.ballCorrection.y = dy;
-        }
-
-        // Update targets for reference
-        ballTarget.x = gameState.ball.x;
-        ballTarget.y = gameState.ball.y;
-        ballTarget.vx = gameState.ball.vx;
-        ballTarget.vy = gameState.ball.vy;
+        // CLIENT: Simply snap to host's ball state
+        gameState.ball.x = ballX;
+        gameState.ball.y = ballY;
+        gameState.ball.vx = ballVx;
+        gameState.ball.vy = ballVy;
     }
 
     // Network functions - Unified game state sync at 10fps (100ms intervals)
@@ -2275,18 +2132,12 @@ function updateLivesDisplay() {
                 lastSentLastAck = lastAcknowledgedSequence;
             }
 
-            // Ball state: Hybrid approach (event-based + adaptive-rate periodic)
-            // - Events (launch/bounce/hit) for instant reactions
-            // - Adaptive periodic updates: 60pps (good connection) or 25pps (degraded connection)
-            // - Also send during waitingForServe so opponent can see ball on server's paddle
-            const ballActive = Math.abs(gameState.ball.vx) > 0.1 || Math.abs(gameState.ball.vy) > 0.1;
-            const shouldSendBall = (gameState.hasActiveBallAuthority && ballActive) ||
-                (gameState.waitingForServe && gameState.isServer);
-            if (shouldSendBall) {
+            // HOST-AUTHORITY: Host (ball owner) always sends ball state
+            // Client just snaps to received position
+            if (gameState.isBallOwner) {
                 const b = gameState.ball;
 
                 // Use reusable ball state object
-                // Fix: No mirroring. Shared coordinate space.
                 reusableBallState.x = b.x;
                 reusableBallState.y = b.y;
                 reusableBallState.vx = b.vx;
@@ -2294,18 +2145,11 @@ function updateLivesDisplay() {
 
                 const newBallState = reusableBallState;
 
-                // Check for significant velocity change (bounce/hit) to force update
-                const velocityChanged = !lastSentBallState ||
-                    Math.abs(lastSentBallState.vx - newBallState.vx) > 0.1 ||
-                    Math.abs(lastSentBallState.vy - newBallState.vy) > 0.1;
-
-                // BANDWIDTH OPTIMIZATION:
-                // Event-Based + 5pps heartbeat (200ms) for robust sync
-                // TIME-BASED: Not tied to screen refresh rate
+                // BANDWIDTH OPTIMIZATION: 20pps heartbeat (50ms) for robust sync
                 const timeSinceBallUpdate = currentTime - (lastBallUpdateTime || 0);
-                const needsHeartbeat = timeSinceBallUpdate >= 200; // 5pps = 200ms
+                const needsUpdate = timeSinceBallUpdate >= 50; // 20pps
 
-                if (velocityChanged || needsHeartbeat) {
+                if (needsUpdate) {
                     state.b = newBallState;
                     lastSentBallState = {
                         x: newBallState.x,
@@ -2314,22 +2158,7 @@ function updateLivesDisplay() {
                         vy: newBallState.vy
                     };
                     lastBallUpdateTime = currentTime;
-
-                    // If we were waiting to relinquish authority (after collision), do it now
-                    // This ensures we sent at least one packet with the new vector
-                    if (gameState.pendingAuthorityTransfer) {
-                        gameState.hasActiveBallAuthority = false;
-                        gameState.pendingAuthorityTransfer = false;
-                    }
                 }
-            } else if (gameState.pendingAuthorityTransfer) {
-                // Edge case: authority transfer pending but ball not active/moving?
-                // Should not happen on collision, but safety release
-                gameState.hasActiveBallAuthority = false;
-                gameState.pendingAuthorityTransfer = false;
-            } else if (!ballActive) {
-                // Ball stopped - clear cached state
-                lastSentBallState = null;
             }
 
             // Always send state packet
